@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OCM Navigator – Change Management</title>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #root { height: 100%; width: 100%; }
-    body { font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; }
+    body { font-family: 'Fira Sans', 'Segoe UI', system-ui, sans-serif; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #f4f6fa; }
-    ::-webkit-scrollbar-thumb { background: #d1d5e0; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: #F5F5F3; }
+    ::-webkit-scrollbar-thumb { background: #CCCCCC; border-radius: 3px; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -30,18 +30,18 @@ const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000)
 
 // ─── Theme ──────────────────────────────────────────────────────────
 const T = {
-  bg: "#f4f6fa", surface: "#ffffff", border: "#e3e6ee", borderLight: "#eef0f6",
-  text: "#1a1d2e", textSec: "#5c6178", textMut: "#949bb2",
-  accent: "#4f6ef7", accentLt: "#edf0fe", success: "#16b77e", successLt: "#e8f8f1",
+  bg: "#F5F5F3", surface: "#ffffff", border: "#DDDDD9", borderLight: "#EBEBEB",
+  text: "#1D1D1B", textSec: "#4F4F4D", textMut: "#8A8A87",
+  accent: "#E6007E", accentLt: "#FCE4F1", success: "#16b77e", successLt: "#e8f8f1",
   warn: "#f0a030", warnLt: "#fef6e8", danger: "#e74c5e", dangerLt: "#fdeef0",
   purple: "#8b6cf6", purpleLt: "#f1edfe", cyan: "#18a5b8", cyanLt: "#e6f7f9",
   pink: "#e560a4", pinkLt: "#fceef6",
   shadow: "0 1px 3px rgba(0,0,0,0.04),0 4px 12px rgba(0,0,0,0.03)",
-  r: 12, rs: 8, font: "'Source Sans 3','Segoe UI',system-ui,sans-serif",
+  r: 12, rs: 8, font: "'Fira Sans','Segoe UI',system-ui,sans-serif",
 };
 
 const ADKAR = ["Awareness", "Desire", "Knowledge", "Ability", "Reinforcement"];
-const ADKAR_C = { Awareness: "#4f6ef7", Desire: "#e560a4", Knowledge: "#18a5b8", Ability: "#8b6cf6", Reinforcement: "#16b77e" };
+const ADKAR_C = { Awareness: "#E6007E", Desire: "#e560a4", Knowledge: "#18a5b8", Ability: "#8b6cf6", Reinforcement: "#16b77e" };
 const DIMS = ["People", "Process", "Technology", "Org"];
 const DIM_IC = { People: "👥", Process: "⚙️", Technology: "💻", Org: "🏢" };
 const READINESS = ["supportive", "neutral", "skeptical", "resistant"];
@@ -293,7 +293,7 @@ function App() {
     <div style={{ width: 244, minHeight: "100vh", background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
       <div style={{ padding: "18px 16px 14px", borderBottom: `1px solid ${T.borderLight}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg,${T.accent},${T.purple})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 700 }}>◈</div>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 700 }}>◈</div>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>OCM Navigator</div>
             <div style={{ fontSize: 10, color: T.textMut }}>Change Management v3</div>
