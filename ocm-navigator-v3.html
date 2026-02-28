@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCM Navigator – Change Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { height: 100%; width: 100%; }
+    body { font-family: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f4f6fa; }
+    ::-webkit-scrollbar-thumb { background: #d1d5e0; border-radius: 3px; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+const uid = (p = "") => p + Math.random().toString(36).slice(2, 8);
+const today = () => new Date().toISOString().slice(0, 10);
+const fmtDate = d => d ? new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" }) : "–";
+const clamp = (v, lo = 0, hi = 10) => Math.max(lo, Math.min(hi, Number(v) || 0));
+const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+// ─── Theme ──────────────────────────────────────────────────────────
+const T = {
+  bg: "#f4f6fa", surface: "#ffffff", border: "#e3e6ee", borderLight: "#eef0f6",
+  text: "#1a1d2e", textSec: "#5c6178", textMut: "#949bb2",
+  accent: "#4f6ef7", accentLt: "#edf0fe", success: "#16b77e", successLt: "#e8f8f1",
+  warn: "#f0a030", warnLt: "#fef6e8", danger: "#e74c5e", dangerLt: "#fdeef0",
+  purple: "#8b6cf6", purpleLt: "#f1edfe", cyan: "#18a5b8", cyanLt: "#e6f7f9",
+  pink: "#e560a4", pinkLt: "#fceef6",
+  shadow: "0 1px 3px rgba(0,0,0,0.04),0 4px 12px rgba(0,0,0,0.03)",
+  r: 12, rs: 8, font: "'Source Sans 3','Segoe UI',system-ui,sans-serif",
+};
+
+const ADKAR = ["Awareness", "Desire", "Knowledge", "Ability", "Reinforcement"];
+const ADKAR_C = { Awareness: "#4f6ef7", Desire: "#e560a4", Knowledge: "#18a5b8", Ability: "#8b6cf6", Reinforcement: "#16b77e" };
+const DIMS = ["People", "Process", "Technology", "Org"];
+const DIM_IC = { People: "👥", Process: "⚙️", Technology: "💻", Org: "🏢" };
+const READINESS = ["supportive", "neutral", "skeptical", "resistant"];
+const TYPES = ["Comms", "Training", "Workshop", "Coaching", "Enablement", "Event", "Feedback"];
+const STATUSES = ["planned", "in_progress", "done"];
+const ROLES = ["Sponsor", "PL", "HR", "IT", "BR", "CM", "SME", "Exec"];
+const CHANNELS = ["Townhall", "E-Mail", "Teams-Chat", "Intranet", "1:1-Gespräch", "Workshop", "Newsletter", "Video", "Poster/Flyer", "Yammer/Viva"];
+const INDUSTRIES = ["IT & Software", "Finanzdienstleistungen", "Pharma & Healthcare", "Automotive", "Energie & Utilities", "Retail & E-Commerce", "Öffentlicher Sektor", "Telekommunikation", "Produktion & Industrie", "Logistik & Transport", "Beratung", "Sonstiges"];
+
+// ─── Score helpers (0-10) ───────────────────────────────────────────
+const scoreColor = v => { const n = Number(v) || 0; if (n >= 8) return T.danger; if (n >= 5) return T.warn; return T.success; };
+const scoreBg = v => { const n = Number(v) || 0; if (n >= 8) return T.dangerLt; if (n >= 5) return T.warnLt; return T.successLt; };
+const statusColor = s => s === "done" ? T.success : s === "in_progress" ? T.accent : T.textMut;
+const statusLabel = s => s === "done" ? "Fertig" : s === "in_progress" ? "In Arbeit" : "Geplant";
+const readyColor = r => r === "supportive" ? T.success : r === "neutral" ? T.warn : r === "skeptical" ? T.pink : T.danger;
+
+// ─── Methods Library ────────────────────────────────────────────────
+const METHODS = [
+  { id: "m1", name: "Stakeholder-Interview", category: "Analyse", adkar: ["Awareness"], effort: "Niedrig", duration: "1–2h pro Person", when: "Frühphase – Bedarfsanalyse & Stimmungsbild",
+    description: "Strukturierte Einzelgespräche mit Schlüssel-Stakeholdern, um Bedenken, Erwartungen und Einflussdynamiken zu verstehen.",
+    bestFor: "Skeptische Stakeholder mit hohem Einfluss identifizieren und einbinden",
+    steps: ["Interviewleitfaden erstellen (5-8 offene Fragen)", "Termine mit Top-Stakeholdern vereinbaren", "Interviews führen & dokumentieren", "Ergebnisse clustern & Handlungsfelder ableiten"],
+    outputs: ["Stakeholder-Stimmungsbild", "Engagement-Plan", "Risiko-Landkarte"] },
+  { id: "m2", name: "Impact Assessment Workshop", category: "Analyse", adkar: ["Awareness", "Knowledge"], effort: "Mittel", duration: "2–4h",  when: "Frühphase – nach Scope-Definition",
+    description: "Moderierter Workshop mit Fachbereichen, um konkrete Auswirkungen des Changes auf Prozesse, Rollen und Systeme zu identifizieren und zu bewerten.",
+    bestFor: "Komplexe Changes mit vielen betroffenen Bereichen systematisch erfassen",
+    steps: ["Teilnehmer aus allen betroffenen Bereichen einladen", "Ist-Situation pro Bereich erfassen", "Delta zum Soll identifizieren", "Impacts bewerten (Ausmaß, Kritikalität)", "Maßnahmen ableiten"],
+    outputs: ["Impact-Register", "Heatmap-Daten", "Maßnahmenvorschläge"] },
+  { id: "m3", name: "Sponsor Roadshow", category: "Kommunikation", adkar: ["Awareness", "Desire"], effort: "Mittel", duration: "30–60 Min je Termin", when: "Vor Go-Live – wenn Awareness & Desire aufgebaut werden müssen",
+    description: "Der Sponsor besucht betroffene Teams persönlich, erklärt das Warum und beantwortet Fragen. Stärkt Vertrauen und Sichtbarkeit.",
+    bestFor: "Wenn Führungskräfte-Sichtbarkeit fehlt oder Widerstand hoch ist",
+    steps: ["Talking Points mit Sponsor abstimmen", "Termine in betroffenen Standorten planen", "Begleitende FAQ & Handout erstellen", "Feedback aus Sessions sammeln", "Follow-up-Maßnahmen ableiten"],
+    outputs: ["Sponsor-Talking-Points", "Feedback-Zusammenfassung", "Follow-up-Tasks"] },
+  { id: "m4", name: "Change Champion Netzwerk", category: "Enablement", adkar: ["Desire", "Ability", "Reinforcement"], effort: "Hoch", duration: "Laufend (Setup: 2–3 Wochen)", when: "Ab Mitte Projektphase – als Multiplikatoren für den Change",
+    description: "Aufbau eines Netzwerks von Change Champions in den Fachbereichen, die als Multiplikatoren, Feedback-Kanal und lokale Unterstützer fungieren.",
+    bestFor: "Große Organisationen mit verteilten Standorten, wo zentrale Kommunikation nicht reicht",
+    steps: ["Champions identifizieren & ansprechen", "Rolle & Erwartungen klären", "Kick-off-Workshop durchführen", "Regelmäßige Sync-Meetings etablieren", "Champions mit Materialien & Infos versorgen", "Feedback-Schleife einrichten"],
+    outputs: ["Champion-Rollenblatt", "Regelmäßige Briefings", "Feedback-Reports"] },
+  { id: "m5", name: "Resistance Management Workshop", category: "Intervention", adkar: ["Desire", "Ability"], effort: "Mittel", duration: "2–3h", when: "Wenn konkreter Widerstand sichtbar wird",
+    description: "Gezielter Workshop mit resistanten Stakeholdern oder deren Führungskräften, um Ursachen von Widerstand zu verstehen und gemeinsam Lösungen zu erarbeiten.",
+    bestFor: "Wenn Widerstand über individuelle Gespräche hinaus eskaliert",
+    steps: ["Widerstandsmuster analysieren (Ursache, Ausdruck, Quelle)", "Geeignete Teilnehmer identifizieren", "Sicheren Raum schaffen (Regeln, Moderation)", "Bedenken sammeln & clustern", "Gemeinsam Lösungen erarbeiten", "Vereinbarungen dokumentieren & nachverfolgen"],
+    outputs: ["Widerstandsanalyse", "Maßnahmenplan", "Vereinbarungen"] },
+  { id: "m6", name: "Training Needs Analysis", category: "Training", adkar: ["Knowledge"], effort: "Mittel", duration: "1–2 Wochen", when: "3–6 Monate vor Go-Live",
+    description: "Systematische Erhebung, welche Kompetenzen aufgebaut werden müssen – nach Zielgruppe, Rolle und System-/Prozessänderung.",
+    bestFor: "Wenn Technology- oder Process-Impacts hohe Training-Scores haben",
+    steps: ["Soll-Kompetenzen pro Rolle ableiten", "Ist-Kompetenzen erheben (Survey/Interviews)", "Gap-Analyse durchführen", "Trainingsformate & -umfang planen", "Trainingsplan erstellen & abstimmen"],
+    outputs: ["Kompetenz-Gap-Matrix", "Trainingsplan", "Ressourcenbedarf"] },
+  { id: "m7", name: "Go-Live Readiness Check", category: "Transition", adkar: ["Ability", "Reinforcement"], effort: "Mittel", duration: "1–2 Wochen vor Go-Live", when: "Unmittelbar vor Go-Live",
+    description: "Strukturierte Prüfung, ob Organisation, Prozesse und Menschen bereit für den Go-Live sind. Definiert No-Go-Kriterien.",
+    bestFor: "Jeder Change mit fixem Go-Live-Datum und hohem Risiko",
+    steps: ["Readiness-Kriterien definieren (Tech, People, Process)", "Checkliste pro Zielgruppe erstellen", "Readiness-Assessment durchführen", "Go/No-Go-Entscheidung vorbereiten", "Restrisiken & Mitigationen dokumentieren"],
+    outputs: ["Readiness-Scorecard", "Go/No-Go-Empfehlung", "Risiko-Mitigationsplan"] },
+  { id: "m8", name: "Post-Go-Live Sustainment", category: "Reinforcement", adkar: ["Reinforcement"], effort: "Mittel", duration: "4–12 Wochen nach Go-Live", when: "Direkt nach Go-Live",
+    description: "Maßnahmenpaket, um die Nachhaltigkeit des Changes sicherzustellen: Hypercare, Feedback-Loops, Quick Wins feiern, Nachschulung.",
+    bestFor: "Jeder signifikante Change – wird am häufigsten vergessen",
+    steps: ["Hypercare-Plan aufsetzen (Support-Kanäle, Ansprechpartner)", "Feedback-Mechanismus einrichten", "Quick Wins identifizieren & kommunizieren", "Nachschulungsbedarf erheben & durchführen", "Lessons Learned dokumentieren", "Reinforcement-Maßnahmen für FK aufsetzen"],
+    outputs: ["Hypercare-Plan", "Feedback-Report", "Lessons Learned", "Sustainment-Roadmap"] },
+  { id: "m9", name: "Pulse Survey / Stimmungscheck", category: "Messung", adkar: ["Awareness", "Desire"], effort: "Niedrig", duration: "5–10 Min (Befragung) + Auswertung", when: "Regelmäßig alle 2–4 Wochen während der Change-Phase",
+    description: "Kurze, wiederkehrende Befragung der Betroffenen zu Stimmung, Verständnis und Unterstützungsbedarf. Liefert Trendlinien über Zeit.",
+    bestFor: "Readiness-Tracking über Zeit und Identifikation von Trouble Spots",
+    steps: ["5–8 Fragen definieren (ADKAR-basiert)", "Tool auswählen (Forms, Viva Pulse)", "Rhythmus festlegen & kommunizieren", "Ergebnisse auswerten & visualisieren", "Maßnahmen aus Ergebnissen ableiten"],
+    outputs: ["Stimmungsbarometer (Trend)", "Handlungsempfehlungen", "Management-Summary"] },
+  { id: "m10", name: "Führungskräfte-Enablement", category: "Enablement", adkar: ["Desire", "Knowledge", "Ability"], effort: "Mittel", duration: "2–4h Workshop + laufende Begleitung", when: "Frühzeitig – bevor breite Kommunikation startet",
+    description: "Führungskräfte werden befähigt, den Change in ihren Teams aktiv zu begleiten: Botschaften, Umgang mit Widerstand, eigene Rolle.",
+    bestFor: "Jeder organisationale Change – FK sind der wichtigste Erfolgsfaktor",
+    steps: ["FK-spezifische Impacts & Rolle klären", "Workshop konzipieren (Botschaften, Q&A-Handling, Rolle)", "Workshop durchführen", "Toolkit bereitstellen (Talking Points, FAQ, Einwandbehandlung)", "Regelmäßige Check-ins etablieren"],
+    outputs: ["FK-Toolkit", "Talking Points", "Einwandbehandlungs-Guide", "Check-in-Protokolle"] },
+];
+
+// ─── Persistence ────────────────────────────────────────────────────
+const SK = "ocm-v3";
+const sv = async d => { try { localStorage.setItem(SK, JSON.stringify(d)); } catch {} };
+const ld = async () => { try { const r = localStorage.getItem(SK); return r ? JSON.parse(r) : null; } catch { return null; } };
+const emptyD = () => ({ initiatives: [], stakeholders: [], targetGroups: [], impactItems: [], actions: [], changeProposals: [], engagements: [], commsItems: [], methods: [...METHODS], customTags: { roles: [...ROLES], actionTypes: [...TYPES], channels: [...CHANNELS], projectTags: [] } });
+
+// ─── Micro Components ───────────────────────────────────────────────
+const Badge = ({ children, color = T.accent, bg: b, onRemove }) => (
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: b || (color + "16"), color, letterSpacing: 0.2, whiteSpace: "nowrap" }}>
+    {children}{onRemove && <span onClick={e => { e.stopPropagation(); onRemove(); }} style={{ cursor: "pointer", opacity: 0.6, fontSize: 13, lineHeight: 1 }}>×</span>}
+  </span>
+);
+const Btn = ({ children, onClick, v = "default", small, disabled, style: sx }) => {
+  const S = { default: { bg: T.surface, c: T.text, b: T.border }, primary: { bg: T.accent, c: "#fff", b: T.accent }, danger: { bg: T.dangerLt, c: T.danger, b: T.dangerLt }, success: { bg: T.successLt, c: T.success, b: T.successLt }, ghost: { bg: "transparent", c: T.textMut, b: "transparent" }, warn: { bg: T.warnLt, c: T.warn, b: T.warnLt } };
+  const s = S[v] || S.default;
+  return <button onClick={onClick} disabled={disabled} style={{ padding: small ? "5px 12px" : "8px 18px", borderRadius: T.rs, border: `1px solid ${s.b}`, background: s.bg, color: s.c, fontSize: small ? 12 : 13, fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", fontFamily: T.font, display: "inline-flex", alignItems: "center", gap: 6, opacity: disabled ? 0.4 : 1, transition: "all .15s", boxShadow: v === "default" ? T.shadow : "none", ...sx }}>{children}</button>;
+};
+const Input = ({ label, value, onChange, options, textarea, type = "text", placeholder, style: sx, min, max, step }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 4, ...sx }}>
+    {label && <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>{label}</label>}
+    {options ? (
+      <select value={value} onChange={e => onChange(e.target.value)} style={{ background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: "8px 10px", fontSize: 13, fontFamily: T.font, outline: "none" }}>
+        <option value="">— Wählen —</option>
+        {options.map(o => <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>{typeof o === "string" ? o : o.label}</option>)}
+      </select>
+    ) : textarea ? (
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={3} style={{ background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: "8px 10px", fontSize: 13, fontFamily: T.font, outline: "none", resize: "vertical" }} />
+    ) : (
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} min={min} max={max} step={step} style={{ background: T.bg, color: T.text, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: "8px 10px", fontSize: 13, fontFamily: T.font, outline: "none" }} />
+    )}
+  </div>
+);
+const ScoreInput = ({ label, value, onChange, style: sx }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 4, ...sx }}>
+    {label && <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>{label}</label>}
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <input type="range" min="0" max="10" value={value} onChange={e => onChange(Number(e.target.value))} style={{ flex: 1, accentColor: scoreColor(value) }} />
+      <span style={{ width: 28, height: 28, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, background: scoreBg(value), color: scoreColor(value) }}>{value}</span>
+    </div>
+  </div>
+);
+const ScoreDot = ({ value, size = 28 }) => (
+  <div style={{ width: size, height: size, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size < 24 ? 10 : 12, fontWeight: 700, background: scoreBg(value), color: scoreColor(value) }}>{value}</div>
+);
+const Card = ({ children, style: sx, onClick }) => (
+  <div onClick={onClick} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.r, padding: 20, boxShadow: T.shadow, transition: "all .15s", cursor: onClick ? "pointer" : "default", ...sx }}>{children}</div>
+);
+const Modal = ({ open, onClose, title, children, wide }) => {
+  if (!open) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(26,29,46,0.3)", backdropFilter: "blur(5px)" }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 28, boxShadow: "0 20px 60px rgba(0,0,0,0.12)", width: wide ? "min(95vw,960px)" : "min(90vw,580px)", maxHeight: "85vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text }}>{title}</h3>
+          <Btn v="ghost" small onClick={onClose}>✕</Btn>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+const Tabs = ({ tabs, active, onChange }) => (
+  <div style={{ display: "flex", gap: 3, background: T.bg, borderRadius: 10, padding: 3, marginBottom: 22, overflowX: "auto" }}>
+    {tabs.map(t => (
+      <button key={t.key} onClick={() => onChange(t.key)} style={{ padding: "7px 16px", borderRadius: T.rs, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: active === t.key ? 600 : 400, fontFamily: T.font, background: active === t.key ? T.surface : "transparent", color: active === t.key ? T.accent : T.textMut, boxShadow: active === t.key ? T.shadow : "none", transition: "all .15s", whiteSpace: "nowrap" }}>
+        {t.label}{t.count != null && <span style={{ marginLeft: 5, fontSize: 10, opacity: 0.6 }}>{t.count}</span>}
+      </button>
+    ))}
+  </div>
+);
+const Empty = ({ icon, title, sub, action }) => (
+  <div style={{ textAlign: "center", padding: "48px 20px" }}>
+    <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.6 }}>{icon}</div>
+    <div style={{ fontSize: 15, fontWeight: 600, color: T.text, marginBottom: 5 }}>{title}</div>
+    <div style={{ fontSize: 13, color: T.textMut, marginBottom: 18 }}>{sub}</div>
+    {action}
+  </div>
+);
+const SectionHead = ({ children }) => <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textSec, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>{children}</div>;
+
+const EditCell = ({ value, onChange, type = "text", options }) => {
+  const [ed, setEd] = useState(false);
+  const [tmp, setTmp] = useState(value);
+  useEffect(() => setTmp(value), [value]);
+  if (!ed) return <span onClick={() => setEd(true)} style={{ cursor: "pointer", borderBottom: "1px dashed transparent", padding: "1px 0" }} onMouseEnter={e => e.target.style.borderBottomColor = T.accent} onMouseLeave={e => e.target.style.borderBottomColor = "transparent"}>{options ? (options.find(o => (typeof o === "string" ? o : o.value) === value) || {}).label || value || "–" : value || "–"}</span>;
+  const commit = () => { onChange(tmp); setEd(false); };
+  if (options) return <select value={tmp} onChange={e => { setTmp(e.target.value); onChange(e.target.value); setEd(false); }} onBlur={() => setEd(false)} autoFocus style={{ background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 5, padding: "2px 5px", fontSize: 12, fontFamily: T.font, outline: "none" }}>{options.map(o => <option key={typeof o === "string" ? o : o.value} value={typeof o === "string" ? o : o.value}>{typeof o === "string" ? o : o.label}</option>)}</select>;
+  if (type === "score") return <input type="number" min="0" max="10" value={tmp} onChange={e => setTmp(clamp(e.target.value))} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus style={{ background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 5, padding: "2px 5px", fontSize: 12, fontFamily: T.font, outline: "none", width: 44, textAlign: "center" }} />;
+  return <input value={tmp} onChange={e => setTmp(e.target.value)} onBlur={commit} onKeyDown={e => e.key === "Enter" && commit()} autoFocus type={type} style={{ background: T.bg, border: `1px solid ${T.accent}`, borderRadius: 5, padding: "2px 6px", fontSize: 12, fontFamily: T.font, outline: "none", width: "100%" }} />;
+};
+
+// ─── TagInput: free tagging component ───────────────────────────────
+const TagInput = ({ label, tags, onChange, suggestions = [], color = T.accent }) => {
+  const [inp, setInp] = useState("");
+  const add = (v) => { const t = (v || inp).trim(); if (t && !tags.includes(t)) onChange([...tags, t]); setInp(""); };
+  const rem = (t) => onChange(tags.filter(x => x !== t));
+  const avail = suggestions.filter(s => !tags.includes(s) && s.toLowerCase().includes(inp.toLowerCase()));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {label && <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>{label}</label>}
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 3 }}>
+        {tags.map(t => <Badge key={t} color={color} onRemove={() => rem(t)}>{t}</Badge>)}
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <input value={inp} onChange={e => setInp(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }} placeholder="Eingabe + Enter" style={{ flex: 1, background: T.bg, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: "5px 8px", fontSize: 12, fontFamily: T.font, outline: "none" }} />
+        <Btn small v="primary" onClick={() => add()}>+</Btn>
+      </div>
+      {inp && avail.length > 0 && (
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+          {avail.slice(0, 8).map(s => <button key={s} onClick={() => add(s)} style={{ padding: "2px 8px", borderRadius: 4, border: "none", background: T.bg, color: T.textSec, fontSize: 11, cursor: "pointer", fontFamily: T.font }}>{s}</button>)}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── ADKAR coverage calc ────────────────────────────────────────────
+const adkarCov = (actions, tgId) => { const c = {}; ADKAR.forEach(a => c[a] = 0); actions.filter(a => !tgId || a.target_group_ids?.includes(tgId)).forEach(a => (a.adkar_tags || []).forEach(t => { if (c[t] !== undefined) c[t]++; })); return c; };
+
+// ═══════════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════════
+function App() {
+  const [data, setData] = useState(emptyD());
+  const [loaded, setLoaded] = useState(false);
+  const [nav, setNav] = useState("dashboard");
+  const [sel, setSel] = useState(null);
+  const [sub, setSub] = useState("overview");
+  const [methodDetail, setMethodDetail] = useState(null);
+
+  useEffect(() => { ld().then(d => { if (d) setData({ ...emptyD(), ...d, methods: d.methods || [...METHODS], customTags: { ...emptyD().customTags, ...(d.customTags || {}) } }); setLoaded(true); }); }, []);
+  useEffect(() => { if (loaded) sv(data); }, [data, loaded]);
+
+  const up = useCallback(fn => setData(p => { const n = structuredClone(p); fn(n); return n; }), []);
+  const ini = useMemo(() => data.initiatives.find(i => i.id === sel), [data, sel]);
+  const iSH = useMemo(() => data.stakeholders.filter(s => s.initiative_id === sel), [data, sel]);
+  const iTG = useMemo(() => data.targetGroups.filter(t => t.initiative_id === sel), [data, sel]);
+  const iIM = useMemo(() => data.impactItems.filter(i => i.initiative_id === sel), [data, sel]);
+  const iAC = useMemo(() => data.actions.filter(a => a.initiative_id === sel), [data, sel]);
+  const iENG = useMemo(() => (data.engagements || []).filter(e => e.initiative_id === sel), [data, sel]);
+  const iCOM = useMemo(() => (data.commsItems || []).filter(c => c.initiative_id === sel), [data, sel]);
+  const upE = (col, id, f, v) => up(d => { const it = d[col].find(x => x.id === id); if (it) it[f] = v; });
+  const tags = data.customTags || emptyD().customTags;
+
+  // ─── SMART ALERTS ─────────────────────────────────────────────────
+  const alerts = useMemo(() => {
+    if (!ini) return [];
+    const a = [];
+    const adkar = adkarCov(iAC);
+    const gaps = ADKAR.filter(k => adkar[k] === 0);
+    if (gaps.length > 0) a.push({ type: "warn", icon: "⚠️", msg: `ADKAR-Lücken: ${gaps.join(", ")} – keine Maßnahmen zugeordnet` });
+    const highResistant = iSH.filter(s => s.readiness === "resistant" && s.influence >= 7);
+    highResistant.forEach(s => a.push({ type: "danger", icon: "🚨", msg: `${s.name} ist resistant mit Einfluss ${s.influence}/10 – dringend Engagement nötig` }));
+    const noRecentEngagement = iSH.filter(s => s.influence >= 7).filter(s => {
+      const engs = iENG.filter(e => e.stakeholder_id === s.id);
+      if (engs.length === 0) return true;
+      const last = engs.sort((a, b) => b.date.localeCompare(a.date))[0];
+      return daysBetween(last.date, today()) > 14;
+    });
+    noRecentEngagement.forEach(s => a.push({ type: "warn", icon: "📅", msg: `${s.name} (Einfluss ${s.influence}/10) – kein Engagement seit >14 Tagen` }));
+    iTG.forEach(tg => {
+      const impacts = iIM.filter(i => i.target_group_id === tg.id);
+      const totalLoad = impacts.reduce((s, i) => s + (i.impact_level || 0), 0);
+      if (totalLoad > 25) a.push({ type: "danger", icon: "🔥", msg: `${tg.name}: Change-Saturation kritisch (Gesamt-Score: ${totalLoad})` });
+    });
+    const milestone = ini.milestones?.[0];
+    if (milestone) {
+      const daysLeft = daysBetween(today(), milestone.date);
+      if (daysLeft > 0 && daysLeft <= 28) {
+        const unready = iAC.filter(a => a.status === "planned");
+        if (unready.length > 3) a.push({ type: "danger", icon: "⏰", msg: `Go-Live in ${daysLeft} Tagen – noch ${unready.length} Maßnahmen in "Geplant"` });
+      }
+    }
+    return a;
+  }, [ini, iSH, iAC, iIM, iTG, iENG]);
+
+  // ─── SIDEBAR ──────────────────────────────────────────────────────
+  const Sidebar = () => (
+    <div style={{ width: 244, minHeight: "100vh", background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div style={{ padding: "18px 16px 14px", borderBottom: `1px solid ${T.borderLight}` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: `linear-gradient(135deg,${T.accent},${T.purple})`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 700 }}>◈</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>OCM Navigator</div>
+            <div style={{ fontSize: 10, color: T.textMut }}>Change Management v3</div>
+          </div>
+        </div>
+      </div>
+      <nav style={{ padding: "10px 8px", flex: 1 }}>
+        {[
+          { key: "dashboard", icon: "📊", label: "Dashboard" },
+          { key: "portfolio", icon: "📁", label: "Portfolio" },
+          { key: "initiative", icon: "◉", label: "Initiative", off: !sel },
+          { key: "engagement", icon: "🤝", label: "Engagement Tracker", off: !sel },
+          { key: "comms", icon: "📣", label: "Komm.-Matrix", off: !sel },
+          { key: "saturation", icon: "🌡️", label: "Change Saturation", off: !sel },
+          { key: "heatmap", icon: "🔥", label: "Impact Heatmap", off: !sel },
+          { key: "timeline", icon: "📅", label: "Timeline", off: !sel },
+          { key: "report", icon: "📋", label: "Statusreport", off: !sel },
+          { key: "methods", icon: "📚", label: "Methoden-Bibliothek" },
+          { key: "io", icon: "↕️", label: "Import / Export" },
+        ].map(item => (
+          <button key={item.key} disabled={item.off} onClick={() => { setNav(item.key); if (item.key === "initiative") setSub("overview"); }}
+            style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "8px 12px", borderRadius: T.rs, border: "none", cursor: item.off ? "not-allowed" : "pointer", textAlign: "left", background: nav === item.key ? T.accentLt : "transparent", color: nav === item.key ? T.accent : item.off ? T.borderLight : T.textSec, fontSize: 12.5, fontWeight: nav === item.key ? 600 : 500, fontFamily: T.font, transition: "all .12s", opacity: item.off ? 0.3 : 1, marginBottom: 1 }}>
+            <span style={{ fontSize: 14, width: 20, textAlign: "center" }}>{item.icon}</span>{item.label}
+            {item.key === "dashboard" && alerts.length > 0 && <span style={{ marginLeft: "auto", background: T.danger, color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{alerts.length}</span>}
+          </button>
+        ))}
+      </nav>
+      {ini && (
+        <div style={{ padding: "12px 16px", borderTop: `1px solid ${T.borderLight}`, background: T.accentLt }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: T.accent }}>Aktive Initiative</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.text }}>{ini.name}</div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── DASHBOARD (per initiative when selected) ─────────────────────
+  const DashboardView = () => {
+    const scope = sel && ini ? "initiative" : "portfolio";
+    const acts = scope === "initiative" ? iAC : data.actions;
+    const imps = scope === "initiative" ? iIM : data.impactItems;
+    const shs = scope === "initiative" ? iSH : data.stakeholders;
+    const tgs = scope === "initiative" ? iTG : data.targetGroups;
+    const tA = acts.length, dA = acts.filter(a => a.status === "done").length;
+    const pct = tA ? Math.round(dA / tA * 100) : 0;
+    const hiImp = imps.filter(i => (i.impact_level || 0) >= 8).length;
+    const res = shs.filter(s => s.readiness === "resistant" || s.readiness === "skeptical").length;
+    const ppl = tgs.reduce((s, t) => s + (t.size || 0), 0);
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div><h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700, color: T.text }}>Dashboard</h2><p style={{ margin: 0, fontSize: 13, color: T.textMut }}>{scope === "initiative" ? ini.name : "Portfolio-Überblick"}</p></div>
+          {data.initiatives.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <Btn small v={!sel ? "primary" : "default"} onClick={() => setSel(null)}>Portfolio</Btn>
+            {data.initiatives.map(i => <Btn key={i.id} small v={sel === i.id ? "primary" : "default"} onClick={() => setSel(i.id)}>{i.name.length > 18 ? i.name.slice(0, 18) + "…" : i.name}</Btn>)}
+          </div>}
+        </div>
+        {alerts.length > 0 && scope === "initiative" && (
+          <Card style={{ marginBottom: 18, padding: 16, borderLeft: `4px solid ${T.danger}`, background: T.dangerLt + "44" }}>
+            <SectionHead>⚡ Smart Alerts ({alerts.length})</SectionHead>
+            {alerts.map((a, i) => (
+              <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6, fontSize: 13, color: a.type === "danger" ? T.danger : T.warn }}>
+                <span>{a.icon}</span><span>{a.msg}</span>
+              </div>
+            ))}
+          </Card>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(155px,1fr))", gap: 12, marginBottom: 20 }}>
+          {[[scope === "initiative" ? "Maßnahmen" : "Initiativen", scope === "initiative" ? tA : data.initiatives.length, T.accent, "📁"], ["Fortschritt", `${pct}%`, T.success, "✅"], ["Impacts ≥8", hiImp, T.danger, "🔥"], ["Betroffene", ppl, T.purple, "👥"], ["Skept./Resistant", res, T.warn, "⚠️"]].map(([l, v, c, ic]) => (
+            <Card key={l} style={{ padding: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div><div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>{l}</div><div style={{ fontSize: 24, fontWeight: 700, color: c }}>{v}</div></div>
+                <span style={{ fontSize: 20, opacity: 0.4 }}>{ic}</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Card>
+            <SectionHead>{scope === "initiative" ? "Maßnahmen-Status" : "Initiativen-Fortschritt"}</SectionHead>
+            {scope === "portfolio" ? (data.initiatives.length === 0 ? <p style={{ fontSize: 13, color: T.textMut }}>Noch keine Initiativen</p> :
+              data.initiatives.map(ini => {
+                const a = data.actions.filter(x => x.initiative_id === ini.id), d = a.filter(x => x.status === "done").length, p = a.length ? Math.round(d / a.length * 100) : 0;
+                return <div key={ini.id} style={{ marginBottom: 12, cursor: "pointer" }} onClick={() => { setSel(ini.id); }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span style={{ fontWeight: 600, color: T.text }}>{ini.name}</span><span style={{ color: T.textMut }}>{p}%</span></div>
+                  <div style={{ background: T.bg, borderRadius: 5, height: 6, overflow: "hidden" }}><div style={{ width: `${p}%`, height: "100%", background: `linear-gradient(90deg,${T.accent},${T.purple})`, borderRadius: 5 }} /></div>
+                </div>;
+              })
+            ) : (
+              <div style={{ display: "flex", gap: 10 }}>
+                {[["Geplant", acts.filter(a => a.status === "planned").length, T.textMut], ["In Arbeit", acts.filter(a => a.status === "in_progress").length, T.accent], ["Fertig", dA, T.success]].map(([l, v, c]) => (
+                  <div key={l} style={{ flex: 1, textAlign: "center", padding: 12, background: T.bg, borderRadius: T.rs }}><div style={{ fontSize: 24, fontWeight: 700, color: c }}>{v}</div><div style={{ fontSize: 10, color: T.textMut }}>{l}</div></div>
+                ))}
+              </div>
+            )}
+          </Card>
+          <Card>
+            <SectionHead>ADKAR-Abdeckung{scope === "initiative" ? "" : " (Portfolio)"}</SectionHead>
+            <div style={{ display: "flex", gap: 14 }}>
+              {ADKAR.map(a => { const c = adkarCov(acts)[a]; return (
+                <div key={a} style={{ flex: 1, textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: ADKAR_C[a] }}>{c}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.textSec }}>{a}</div>
+                  <div style={{ background: T.bg, borderRadius: 3, height: 4, marginTop: 5, overflow: "hidden" }}><div style={{ width: `${Math.min(c * 15, 100)}%`, height: "100%", background: ADKAR_C[a], borderRadius: 3 }} /></div>
+                </div>
+              ); })}
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── PORTFOLIO ────────────────────────────────────────────────────
+  const PortfolioView = () => {
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ name: "", goal: "", industry: "", personDays: "", volume: "", priority: "High", startDate: "", endDate: "", goLiveDate: "", projectTags: [] });
+    const add = () => { if (!f.name) return; up(d => d.initiatives.push({ id: uid("INI-"), ...f, personDays: Number(f.personDays) || 0, volume: Number(f.volume) || 0, milestones: f.goLiveDate ? [{ id: "M1", name: "Go-Live", date: f.goLiveDate }] : [], created: new Date().toISOString() })); sF({ name: "", goal: "", industry: "", personDays: "", volume: "", priority: "High", startDate: "", endDate: "", goLiveDate: "", projectTags: [] }); setShow(false); };
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+          <div><h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: T.text }}>Change Portfolio</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: T.textMut }}>{data.initiatives.length} Initiativen</p></div>
+          <Btn v="primary" onClick={() => setShow(true)}>＋ Neue Initiative</Btn>
+        </div>
+        {data.initiatives.length === 0 ? <Empty icon="📁" title="Noch keine Initiativen" sub="Starte dein Portfolio" action={<Btn v="primary" onClick={() => setShow(true)}>Erste Initiative</Btn>} /> : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 14 }}>
+            {data.initiatives.map(i => {
+              const ac = data.actions.filter(a => a.initiative_id === i.id), dn = ac.filter(a => a.status === "done").length, pc = ac.length ? Math.round(dn / ac.length * 100) : 0;
+              return <Card key={i.id} onClick={() => { setSel(i.id); setNav("initiative"); setSub("overview"); }} style={{ cursor: "pointer", borderColor: sel === i.id ? T.accent : T.border }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}><div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{i.name}</div><Badge color={i.priority === "High" ? T.danger : i.priority === "Medium" ? T.warn : T.success}>{i.priority}</Badge></div>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+                  {i.industry && <Badge color={T.purple}>{i.industry}</Badge>}
+                  {(i.projectTags || []).map(t => <Badge key={t} color={T.cyan}>{t}</Badge>)}
+                </div>
+                <p style={{ fontSize: 12, color: T.textSec, margin: "0 0 8px", minHeight: 16 }}>{i.goal || "–"}</p>
+                <div style={{ display: "flex", gap: 10, fontSize: 11, color: T.textMut, marginBottom: 8 }}>
+                  {i.startDate && <span>📅 {fmtDate(i.startDate)} – {fmtDate(i.endDate)}</span>}
+                  {i.personDays > 0 && <span>👤 {i.personDays} PT</span>}
+                  {i.volume > 0 && <span>💰 {Number(i.volume).toLocaleString("de-DE")}€</span>}
+                </div>
+                <div style={{ background: T.bg, borderRadius: 5, height: 5, overflow: "hidden", marginBottom: 4 }}><div style={{ width: `${pc}%`, height: "100%", background: `linear-gradient(90deg,${T.accent},${T.purple})`, borderRadius: 5 }} /></div>
+                <div style={{ fontSize: 11, color: T.textMut }}>{pc}% • {ac.length} Maßnahmen</div>
+              </Card>;
+            })}
+          </div>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Neue Initiative" wide>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Name" value={f.name} onChange={v => sF(p => ({ ...p, name: v }))} placeholder="z.B. ERP Migration Wave 1" style={{ gridColumn: "1/-1" }} />
+            <Input label="Ziel" value={f.goal} onChange={v => sF(p => ({ ...p, goal: v }))} textarea style={{ gridColumn: "1/-1" }} />
+            <Input label="Branche" value={f.industry} onChange={v => sF(p => ({ ...p, industry: v }))} options={INDUSTRIES} />
+            <Input label="Priorität" value={f.priority} onChange={v => sF(p => ({ ...p, priority: v }))} options={["High", "Medium", "Low"]} />
+            <Input label="Startdatum" value={f.startDate} onChange={v => sF(p => ({ ...p, startDate: v }))} type="date" />
+            <Input label="Enddatum" value={f.endDate} onChange={v => sF(p => ({ ...p, endDate: v }))} type="date" />
+            <Input label="Personentage (PT)" value={f.personDays} onChange={v => sF(p => ({ ...p, personDays: v }))} type="number" placeholder="z.B. 120" />
+            <Input label="Auftragsvolumen (€)" value={f.volume} onChange={v => sF(p => ({ ...p, volume: v }))} type="number" placeholder="z.B. 250000" />
+            <Input label="Go-Live Datum" value={f.goLiveDate} onChange={v => sF(p => ({ ...p, goLiveDate: v }))} type="date" />
+            <div />
+            <div style={{ gridColumn: "1/-1" }}><TagInput label="Projekt-Tags (z.B. SAP, Cloud, Reorg)" tags={f.projectTags} onChange={v => sF(p => ({ ...p, projectTags: v }))} suggestions={tags.projectTags} color={T.cyan} /></div>
+          </div>
+          <Btn v="primary" onClick={add} style={{ marginTop: 18, alignSelf: "flex-end" }}>Erstellen</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── INITIATIVE ───────────────────────────────────────────────────
+  const InitiativeView = () => {
+    if (!ini) return <Empty icon="◉" title="Keine Initiative ausgewählt" sub="Wähle im Portfolio" />;
+    const tabs = [
+      { key: "overview", label: "Übersicht" }, { key: "stakeholders", label: "Stakeholder", count: iSH.length },
+      { key: "targets", label: "Zielgruppen", count: iTG.length }, { key: "impacts", label: "Impacts", count: iIM.length },
+      { key: "actions", label: "Maßnahmen", count: iAC.length },
+    ];
+    return (
+      <div>
+        <h2 style={{ margin: "0 0 3px", fontSize: 22, fontWeight: 700, color: T.text }}>{ini.name}</h2>
+        <p style={{ margin: "0 0 18px", fontSize: 13, color: T.textMut }}>{ini.goal}</p>
+        <Tabs tabs={tabs} active={sub} onChange={setSub} />
+        {sub === "overview" && <OverviewSub />}
+        {sub === "stakeholders" && <StakeholderSub />}
+        {sub === "targets" && <TargetSub />}
+        {sub === "impacts" && <ImpactSub />}
+        {sub === "actions" && <ActionSub />}
+      </div>
+    );
+  };
+
+  const OverviewSub = () => {
+    const adkar = adkarCov(iAC); const sc = { planned: 0, in_progress: 0, done: 0 }; iAC.forEach(a => sc[a.status]++);
+    const del = () => { if (!confirm("Löschen?")) return; up(d => { ["initiatives","stakeholders","targetGroups","impactItems","actions","engagements","commsItems"].forEach(k => { if (d[k]) d[k] = d[k].filter(x => x.initiative_id !== sel && x.id !== sel); }); }); setSel(null); setNav("portfolio"); };
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <Card>
+          <SectionHead>Details</SectionHead>
+          {[["Scope", ini.scope], ["Priorität", ini.priority], ["Zeitfenster", ini.time_window], ["Go-Live", ini.milestones?.[0]?.date ? fmtDate(ini.milestones[0].date) : "–"]].map(([l, v]) => (
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.borderLight}`, fontSize: 12.5 }}>
+              <span style={{ color: T.textMut }}>{l}</span><span style={{ color: T.text, fontWeight: 500 }}>{v || "–"}</span>
+            </div>
+          ))}
+          <Btn v="danger" small onClick={del} style={{ marginTop: 14 }}>Löschen</Btn>
+        </Card>
+        <Card>
+          <SectionHead>ADKAR</SectionHead>
+          {ADKAR.map(a => (
+            <div key={a} style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span style={{ color: T.text, fontWeight: 500 }}>{a}</span><span style={{ color: T.textMut }}>{adkar[a]}</span></div>
+              <div style={{ background: T.bg, borderRadius: 3, height: 5, overflow: "hidden" }}><div style={{ width: `${Math.min(adkar[a] * 20, 100)}%`, height: "100%", borderRadius: 3, background: ADKAR_C[a] }} /></div>
+            </div>
+          ))}
+        </Card>
+        <Card>
+          <SectionHead>Maßnahmen-Status</SectionHead>
+          <div style={{ display: "flex", gap: 10 }}>
+            {[["Geplant", sc.planned, T.textMut], ["In Arbeit", sc.in_progress, T.accent], ["Fertig", sc.done, T.success]].map(([l, v, c]) => (
+              <div key={l} style={{ flex: 1, textAlign: "center", padding: 12, background: T.bg, borderRadius: T.rs }}><div style={{ fontSize: 24, fontWeight: 700, color: c }}>{v}</div><div style={{ fontSize: 10, color: T.textMut }}>{l}</div></div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <SectionHead>Impact-Verteilung</SectionHead>
+          {DIMS.map(dim => { const items = iIM.filter(i => i.dimension === dim); return (
+            <div key={dim} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span style={{ width: 20, fontSize: 14 }}>{DIM_IC[dim]}</span><span style={{ width: 80, fontSize: 12, color: T.text, fontWeight: 500 }}>{dim}</span>
+              <div style={{ flex: 1, display: "flex", gap: 3 }}>{items.map((it, i) => <ScoreDot key={i} value={it.impact_level} size={22} />)}{items.length === 0 && <span style={{ fontSize: 11, color: T.textMut }}>–</span>}</div>
+            </div>
+          ); })}
+        </Card>
+      </div>
+    );
+  };
+
+  // ─── STAKEHOLDER ──────────────────────────────────────────────────
+  const StakeholderSub = () => {
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ name: "", roles: [], function: "", org_unit: "", influence: 5, interest: 5, readiness: "neutral", notes: "" });
+    const add = () => { if (!f.name) return; up(d => d.stakeholders.push({ id: uid("S-"), initiative_id: sel, ...f })); sF({ name: "", roles: [], function: "", org_unit: "", influence: 5, interest: 5, readiness: "neutral", notes: "" }); setShow(false); };
+    const del = id => up(d => d.stakeholders = d.stakeholders.filter(s => s.id !== id));
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>Stakeholder</span><Btn v="primary" small onClick={() => setShow(true)}>＋ Hinzufügen</Btn></div>
+        {iSH.length === 0 ? <Empty icon="👤" title="Keine Stakeholder" sub="" /> : (
+          <Card style={{ padding: 0, overflow: "hidden" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                <thead><tr style={{ background: T.bg }}>
+                  {["Name", "Rolle(n)", "Organisationseinheit", "Einfluss", "Interesse", "Readiness", "Letztes Engagement", ""].map(h => <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: T.textMut, fontWeight: 600, fontSize: 10.5, textTransform: "uppercase" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>{iSH.map(s => {
+                  const engs = iENG.filter(e => e.stakeholder_id === s.id).sort((a, b) => b.date.localeCompare(a.date));
+                  const lastEng = engs[0];
+                  const daysSince = lastEng ? daysBetween(lastEng.date, today()) : null;
+                  return (
+                    <tr key={s.id} style={{ borderBottom: `1px solid ${T.borderLight}` }}>
+                      <td style={{ padding: "8px 12px", fontWeight: 500, color: T.text }}><EditCell value={s.name} onChange={v => upE("stakeholders", s.id, "name", v)} /></td>
+                      <td style={{ padding: "8px 12px" }}>{(s.roles || [s.role]).map(r => <Badge key={r} color={T.purple}>{r}</Badge>)}</td>
+                      <td style={{ padding: "8px 12px", color: T.textSec }}><EditCell value={s.org_unit} onChange={v => upE("stakeholders", s.id, "org_unit", v)} /></td>
+                      <td style={{ padding: "8px 12px" }}><ScoreDot value={s.influence} /><EditCell value={s.influence} onChange={v => upE("stakeholders", s.id, "influence", clamp(v))} type="score" /></td>
+                      <td style={{ padding: "8px 12px" }}><ScoreDot value={s.interest} /><EditCell value={s.interest} onChange={v => upE("stakeholders", s.id, "interest", clamp(v))} type="score" /></td>
+                      <td style={{ padding: "8px 12px" }}><Badge color={readyColor(s.readiness)}><EditCell value={s.readiness} onChange={v => upE("stakeholders", s.id, "readiness", v)} options={READINESS.map(r => ({ value: r, label: r }))} /></Badge></td>
+                      <td style={{ padding: "8px 12px", fontSize: 11, color: daysSince !== null && daysSince > 14 ? T.danger : T.textMut }}>{lastEng ? `${fmtDate(lastEng.date)} (vor ${daysSince}d)` : "–"}</td>
+                      <td style={{ padding: "8px 12px" }}><Btn v="ghost" small onClick={() => del(s.id)}>✕</Btn></td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Stakeholder hinzufügen">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Name" value={f.name} onChange={v => sF(p => ({ ...p, name: v }))} />
+            <Input label="Funktion" value={f.function} onChange={v => sF(p => ({ ...p, function: v }))} />
+            <div style={{ gridColumn: "1/-1" }}><TagInput label="Rolle(n) – frei anlegbar" tags={f.roles} onChange={v => sF(p => ({ ...p, roles: v }))} suggestions={tags.roles} color={T.purple} /></div>
+            <Input label="Organisationseinheit" value={f.org_unit} onChange={v => sF(p => ({ ...p, org_unit: v }))} />
+            <ScoreInput label="Einfluss (0–10)" value={f.influence} onChange={v => sF(p => ({ ...p, influence: v }))} />
+            <ScoreInput label="Interesse (0–10)" value={f.interest} onChange={v => sF(p => ({ ...p, interest: v }))} />
+            <Input label="Readiness" value={f.readiness} onChange={v => sF(p => ({ ...p, readiness: v }))} options={READINESS} />
+            <Input label="Notizen" value={f.notes} onChange={v => sF(p => ({ ...p, notes: v }))} textarea />
+          </div>
+          <Btn v="primary" onClick={add} style={{ marginTop: 16 }}>Speichern</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── TARGET GROUPS ────────────────────────────────────────────────
+  const TargetSub = () => {
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ name: "", size: "", org_units: "", locations: "" });
+    const add = () => { if (!f.name) return; up(d => d.targetGroups.push({ id: uid("TG-"), initiative_id: sel, name: f.name, size: parseInt(f.size) || 0, org_units: f.org_units.split(",").map(s => s.trim()).filter(Boolean), locations: f.locations.split(",").map(s => s.trim()).filter(Boolean) })); sF({ name: "", size: "", org_units: "", locations: "" }); setShow(false); };
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600 }}>Zielgruppen</span><Btn v="primary" small onClick={() => setShow(true)}>＋</Btn></div>
+        {iTG.length === 0 ? <Empty icon="👥" title="Keine Zielgruppen" sub="" /> : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
+            {iTG.map(tg => <Card key={tg.id}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}><span style={{ fontSize: 14, fontWeight: 600 }}>{tg.name}</span><Btn v="ghost" small onClick={() => up(d => d.targetGroups = d.targetGroups.filter(t => t.id !== tg.id))}>✕</Btn></div>
+              <div style={{ fontSize: 12, color: T.textMut, marginBottom: 8 }}>👥 {tg.size} • {tg.org_units?.join(", ") || "–"}</div>
+              <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>{ADKAR.map(a => { const c = adkarCov(iAC, tg.id)[a]; return <Badge key={a} color={c === 0 ? T.danger : c < 2 ? T.warn : T.success}>{a[0]}:{c}</Badge>; })}</div>
+            </Card>)}
+          </div>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Zielgruppe"><div style={{ display: "flex", flexDirection: "column", gap: 14 }}><Input label="Name" value={f.name} onChange={v => sF(p => ({ ...p, name: v }))} /><Input label="Größe" value={f.size} onChange={v => sF(p => ({ ...p, size: v }))} type="number" /><Input label="Organisationseinheiten (kommagetrennt)" value={f.org_units} onChange={v => sF(p => ({ ...p, org_units: v }))} /><Input label="Standorte" value={f.locations} onChange={v => sF(p => ({ ...p, locations: v }))} /></div><Btn v="primary" onClick={add} style={{ marginTop: 16 }}>Speichern</Btn></Modal>
+      </div>
+    );
+  };
+
+  // ─── IMPACTS (0-10 scale) ─────────────────────────────────────────
+  const ImpactSub = () => {
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ target_group_id: "", dimension: "People", change_description: "", impact_level: 5, criticality: 5, training_need: 5, comms_need: 5 });
+    const add = () => { if (!f.change_description) return; up(d => d.impactItems.push({ id: uid("I-"), initiative_id: sel, ...f, dependencies: [] })); sF({ target_group_id: "", dimension: "People", change_description: "", impact_level: 5, criticality: 5, training_need: 5, comms_need: 5 }); setShow(false); };
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600 }}>Impact Items</span><Btn v="primary" small onClick={() => setShow(true)}>＋</Btn></div>
+        {iIM.length === 0 ? <Empty icon="⚡" title="Keine Impacts" sub="" /> : (
+          <Card style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: T.bg }}>{["Zielgruppe", "Dim.", "Beschreibung", "Impact", "Krit.", "Train.", "Komm.", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: T.textMut, fontWeight: 600, fontSize: 10.5, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
+              <tbody>{iIM.map(imp => <tr key={imp.id} style={{ borderBottom: `1px solid ${T.borderLight}` }}>
+                <td style={{ padding: "8px 10px" }}>{iTG.find(t => t.id === imp.target_group_id)?.name || "–"}</td>
+                <td style={{ padding: "8px 10px" }}><Badge color={T.cyan}>{imp.dimension}</Badge></td>
+                <td style={{ padding: "8px 10px", color: T.textSec, maxWidth: 200 }}><EditCell value={imp.change_description} onChange={v => upE("impactItems", imp.id, "change_description", v)} /></td>
+                <td style={{ padding: "8px 10px" }}><ScoreDot value={imp.impact_level} /></td>
+                <td style={{ padding: "8px 10px" }}><ScoreDot value={imp.criticality} /></td>
+                <td style={{ padding: "8px 10px" }}><ScoreDot value={imp.training_need} /></td>
+                <td style={{ padding: "8px 10px" }}><ScoreDot value={imp.comms_need} /></td>
+                <td style={{ padding: "8px 10px" }}><Btn v="ghost" small onClick={() => up(d => d.impactItems = d.impactItems.filter(i => i.id !== imp.id))}>✕</Btn></td>
+              </tr>)}</tbody>
+            </table>
+          </div></Card>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Impact Item">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Zielgruppe" value={f.target_group_id} onChange={v => sF(p => ({ ...p, target_group_id: v }))} options={iTG.map(t => ({ value: t.id, label: t.name }))} />
+            <Input label="Dimension" value={f.dimension} onChange={v => sF(p => ({ ...p, dimension: v }))} options={DIMS} />
+            <Input label="Beschreibung" value={f.change_description} onChange={v => sF(p => ({ ...p, change_description: v }))} textarea style={{ gridColumn: "1/-1" }} />
+            <ScoreInput label="Impact (0–10)" value={f.impact_level} onChange={v => sF(p => ({ ...p, impact_level: v }))} />
+            <ScoreInput label="Kritikalität (0–10)" value={f.criticality} onChange={v => sF(p => ({ ...p, criticality: v }))} />
+            <ScoreInput label="Training-Bedarf (0–10)" value={f.training_need} onChange={v => sF(p => ({ ...p, training_need: v }))} />
+            <ScoreInput label="Komm.-Bedarf (0–10)" value={f.comms_need} onChange={v => sF(p => ({ ...p, comms_need: v }))} />
+          </div>
+          <Btn v="primary" onClick={add} style={{ marginTop: 16 }}>Speichern</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── ACTIONS ──────────────────────────────────────────────────────
+  const ActionSub = () => {
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ typeTags: [], title: "", adkar_tags: [], target_group_ids: [], owner_person_id: "", supporter_ids: [], opponent_ids: [], due_date: "", status: "planned" });
+    const togA = t => sF(p => ({ ...p, adkar_tags: p.adkar_tags.includes(t) ? p.adkar_tags.filter(x => x !== t) : [...p.adkar_tags, t] }));
+    const togT = id => sF(p => ({ ...p, target_group_ids: p.target_group_ids.includes(id) ? p.target_group_ids.filter(x => x !== id) : [...p.target_group_ids, id] }));
+    const add = () => { if (!f.title) return; up(d => d.actions.push({ id: uid("A-"), initiative_id: sel, ...f, depends_on: [], linked_artifact_ids: [] })); sF({ typeTags: [], title: "", adkar_tags: [], target_group_ids: [], owner_person_id: "", supporter_ids: [], opponent_ids: [], due_date: "", status: "planned" }); setShow(false); };
+    const cycle = id => up(d => { const a = d.actions.find(x => x.id === id); if (a) a.status = a.status === "planned" ? "in_progress" : a.status === "in_progress" ? "done" : "planned"; });
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600 }}>Maßnahmen</span><Btn v="primary" small onClick={() => setShow(true)}>＋</Btn></div>
+        {iAC.length === 0 ? <Empty icon="📋" title="Keine Maßnahmen" sub="" /> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {iAC.map(a => { const ow = iSH.find(s => s.id === a.owner_person_id); const supps = (a.supporter_ids || []).map(id => iSH.find(s => s.id === id)).filter(Boolean); const opps = (a.opponent_ids || []).map(id => iSH.find(s => s.id === id)).filter(Boolean); return (
+              <Card key={a.id} style={{ padding: 14, borderLeft: `4px solid ${statusColor(a.status)}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                      <button onClick={() => cycle(a.id)} style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${statusColor(a.status)}`, background: a.status === "done" ? T.successLt : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: statusColor(a.status), fontFamily: T.font }}>{a.status === "done" ? "✓" : a.status === "in_progress" ? "▸" : ""}</button>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}><EditCell value={a.title} onChange={v => upE("actions", a.id, "title", v)} /></span>
+                      {(a.typeTags || [a.type]).map(t => <Badge key={t} color={T.cyan}>{t}</Badge>)}
+                      <Badge color={statusColor(a.status)}>{statusLabel(a.status)}</Badge>
+                    </div>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {(a.adkar_tags || []).map(t => <Badge key={t} color={ADKAR_C[t]}>{t}</Badge>)}
+                      {a.due_date && <Badge color={T.textMut}>📅 {fmtDate(a.due_date)}</Badge>}
+                      {ow && <Badge color={T.success}>👤 Owner: {ow.name}</Badge>}
+                      {supps.map(s => <Badge key={s.id} color={T.accent}>👍 {s.name}</Badge>)}
+                      {opps.map(s => <Badge key={s.id} color={T.danger}>👎 {s.name}</Badge>)}
+                    </div>
+                  </div>
+                  <Btn v="ghost" small onClick={() => up(d => d.actions = d.actions.filter(x => x.id !== a.id))}>✕</Btn>
+                </div>
+              </Card>
+            ); })}
+          </div>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Maßnahme" wide>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Titel" value={f.title} onChange={v => sF(p => ({ ...p, title: v }))} style={{ gridColumn: "1/-1" }} />
+            <div style={{ gridColumn: "1/-1" }}><TagInput label="Typ(en) – frei anlegbar" tags={f.typeTags} onChange={v => sF(p => ({ ...p, typeTags: v }))} suggestions={tags.actionTypes} color={T.cyan} /></div>
+            <Input label="Owner" value={f.owner_person_id} onChange={v => sF(p => ({ ...p, owner_person_id: v }))} options={iSH.map(s => ({ value: s.id, label: s.name }))} />
+            <Input label="Fällig am" value={f.due_date} onChange={v => sF(p => ({ ...p, due_date: v }))} type="date" />
+            <Input label="Status" value={f.status} onChange={v => sF(p => ({ ...p, status: v }))} options={STATUSES} />
+            <div />
+            <div><label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>Supporter</label><div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>{iSH.map(s => <button key={s.id} onClick={() => sF(p => ({ ...p, supporter_ids: p.supporter_ids.includes(s.id) ? p.supporter_ids.filter(x => x !== s.id) : [...p.supporter_ids, s.id] }))} style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontFamily: T.font, fontWeight: 600, background: f.supporter_ids.includes(s.id) ? T.successLt : T.bg, color: f.supporter_ids.includes(s.id) ? T.success : T.textMut }}>{s.name}</button>)}</div></div>
+            <div><label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>Gegner</label><div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>{iSH.map(s => <button key={s.id} onClick={() => sF(p => ({ ...p, opponent_ids: p.opponent_ids.includes(s.id) ? p.opponent_ids.filter(x => x !== s.id) : [...p.opponent_ids, s.id] }))} style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontFamily: T.font, fontWeight: 600, background: f.opponent_ids.includes(s.id) ? T.dangerLt : T.bg, color: f.opponent_ids.includes(s.id) ? T.danger : T.textMut }}>{s.name}</button>)}</div></div>
+          </div>
+          <div style={{ marginTop: 14 }}><label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>ADKAR-Tags</label><div style={{ display: "flex", gap: 5, marginTop: 6 }}>{ADKAR.map(a => <button key={a} onClick={() => togA(a)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11.5, fontFamily: T.font, fontWeight: 600, background: f.adkar_tags.includes(a) ? ADKAR_C[a] + "20" : T.bg, color: f.adkar_tags.includes(a) ? ADKAR_C[a] : T.textMut, outline: f.adkar_tags.includes(a) ? `2px solid ${ADKAR_C[a]}` : "none" }}>{a}</button>)}</div></div>
+          <div style={{ marginTop: 14 }}><label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>Zielgruppen</label><div style={{ display: "flex", gap: 5, marginTop: 6, flexWrap: "wrap" }}>{iTG.map(tg => <button key={tg.id} onClick={() => togT(tg.id)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11.5, fontFamily: T.font, fontWeight: 600, background: f.target_group_ids.includes(tg.id) ? T.accentLt : T.bg, color: f.target_group_ids.includes(tg.id) ? T.accent : T.textMut }}>{tg.name}</button>)}</div></div>
+          <Btn v="primary" onClick={add} style={{ marginTop: 20 }}>Speichern</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── ENGAGEMENT TRACKER ───────────────────────────────────────────
+  const EngagementView = () => {
+    if (!ini) return <Empty icon="🤝" title="Keine Initiative" sub="" />;
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ stakeholder_id: "", date: today(), type: "1:1-Gespräch", notes: "", outcome: "", next_action: "" });
+    const add = () => { if (!f.stakeholder_id) return; up(d => { if (!d.engagements) d.engagements = []; d.engagements.push({ id: uid("E-"), initiative_id: sel, ...f }); }); sF({ stakeholder_id: "", date: today(), type: "1:1-Gespräch", notes: "", outcome: "", next_action: "" }); setShow(false); };
+    const grouped = {};
+    iSH.forEach(s => { grouped[s.id] = { stakeholder: s, engagements: iENG.filter(e => e.stakeholder_id === s.id).sort((a, b) => b.date.localeCompare(a.date)) }; });
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div><h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Engagement Tracker</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: T.textMut }}>Kontakthistorie & nächste Aktionen</p></div>
+          <Btn v="primary" onClick={() => setShow(true)}>＋ Engagement</Btn>
+        </div>
+        {iSH.length === 0 ? <Empty icon="🤝" title="Keine Stakeholder" sub="Erst Stakeholder anlegen" /> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {Object.values(grouped).map(({ stakeholder: s, engagements: engs }) => {
+              const daysSince = engs[0] ? daysBetween(engs[0].date, today()) : null;
+              const urgent = s.influence >= 7 && (daysSince === null || daysSince > 14);
+              return (
+                <Card key={s.id} style={{ borderLeft: `4px solid ${urgent ? T.danger : readyColor(s.readiness)}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{s.name}</span>
+                      <Badge color={T.purple}>{s.role}</Badge><Badge color={readyColor(s.readiness)}>{s.readiness}</Badge>
+                      <span style={{ fontSize: 11, color: T.textMut }}>Einfl: {s.influence} / Int: {s.interest}</span>
+                    </div>
+                    {urgent && <Badge color={T.danger}>⚠ Engagement überfällig</Badge>}
+                  </div>
+                  {engs.length === 0 ? <p style={{ fontSize: 12, color: T.textMut, fontStyle: "italic" }}>Noch kein Engagement dokumentiert</p> : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {engs.slice(0, 3).map(e => (
+                        <div key={e.id} style={{ padding: "8px 12px", background: T.bg, borderRadius: T.rs, fontSize: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ fontWeight: 600, color: T.text }}>{fmtDate(e.date)} – {e.type}</span>
+                          </div>
+                          {e.notes && <div style={{ color: T.textSec, marginBottom: 2 }}>{e.notes}</div>}
+                          {e.outcome && <div style={{ color: T.accent }}>Ergebnis: {e.outcome}</div>}
+                          {e.next_action && <div style={{ color: T.warn }}>Nächste Aktion: {e.next_action}</div>}
+                        </div>
+                      ))}
+                      {engs.length > 3 && <span style={{ fontSize: 11, color: T.textMut }}>+{engs.length - 3} weitere</span>}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Engagement dokumentieren">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Stakeholder" value={f.stakeholder_id} onChange={v => sF(p => ({ ...p, stakeholder_id: v }))} options={iSH.map(s => ({ value: s.id, label: s.name }))} />
+            <Input label="Datum" value={f.date} onChange={v => sF(p => ({ ...p, date: v }))} type="date" />
+            <Input label="Art" value={f.type} onChange={v => sF(p => ({ ...p, type: v }))} options={["1:1-Gespräch", "Workshop", "E-Mail", "Townhall", "Teams-Call", "Informell"]} />
+            <Input label="Ergebnis" value={f.outcome} onChange={v => sF(p => ({ ...p, outcome: v }))} />
+            <Input label="Notizen" value={f.notes} onChange={v => sF(p => ({ ...p, notes: v }))} textarea style={{ gridColumn: "1/-1" }} />
+            <Input label="Nächste Aktion" value={f.next_action} onChange={v => sF(p => ({ ...p, next_action: v }))} style={{ gridColumn: "1/-1" }} />
+          </div>
+          <Btn v="primary" onClick={add} style={{ marginTop: 16 }}>Speichern</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── COMMS MATRIX ─────────────────────────────────────────────────
+  const CommsView = () => {
+    if (!ini) return <Empty icon="📣" title="Keine Initiative" sub="" />;
+    const [show, setShow] = useState(false);
+    const [f, sF] = useState({ target_group_id: "", adkar_phase: "Awareness", key_message: "", channelTags: [], sender_id: "", timing: "", frequency: "" });
+    const add = () => { if (!f.key_message) return; up(d => { if (!d.commsItems) d.commsItems = []; d.commsItems.push({ id: uid("CM-"), initiative_id: sel, ...f }); }); sF({ target_group_id: "", adkar_phase: "Awareness", key_message: "", channelTags: [], sender_id: "", timing: "", frequency: "" }); setShow(false); };
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <div><h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Kommunikations-Matrix</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: T.textMut }}>Botschaft × Zielgruppe × Kanal × Absender</p></div>
+          <Btn v="primary" onClick={() => setShow(true)}>＋ Komm.-Item</Btn>
+        </div>
+        {iCOM.length === 0 ? <Empty icon="📣" title="Keine Kommunikation geplant" sub="" /> : (
+          <Card style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ background: T.bg }}>{["Zielgruppe", "ADKAR", "Kernbotschaft", "Kanal", "Absender", "Timing", ""].map(h => <th key={h} style={{ padding: "8px 10px", textAlign: "left", color: T.textMut, fontWeight: 600, fontSize: 10.5, textTransform: "uppercase" }}>{h}</th>)}</tr></thead>
+              <tbody>{iCOM.map(c => {
+                const tg = iTG.find(t => t.id === c.target_group_id); const sender = iSH.find(s => s.id === c.sender_id);
+                return <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderLight}` }}>
+                  <td style={{ padding: "8px 10px", fontWeight: 500 }}>{tg?.name || "Alle"}</td>
+                  <td style={{ padding: "8px 10px" }}><Badge color={ADKAR_C[c.adkar_phase]}>{c.adkar_phase}</Badge></td>
+                  <td style={{ padding: "8px 10px", color: T.textSec, maxWidth: 220 }}>{c.key_message}</td>
+                  <td style={{ padding: "8px 10px" }}>{(c.channelTags || [c.channel]).map(ch => <Badge key={ch} color={T.cyan}>{ch}</Badge>)}</td>
+                  <td style={{ padding: "8px 10px" }}>{sender ? <Badge color={T.purple}>👤 {sender.name}</Badge> : "–"}</td>
+                  <td style={{ padding: "8px 10px", color: T.textMut }}>{c.timing || "–"}{c.frequency ? ` (${c.frequency})` : ""}</td>
+                  <td style={{ padding: "8px 10px" }}><Btn v="ghost" small onClick={() => up(d => d.commsItems = d.commsItems.filter(x => x.id !== c.id))}>✕</Btn></td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div></Card>
+        )}
+        <Modal open={show} onClose={() => setShow(false)} title="Kommunikations-Item" wide>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Zielgruppe" value={f.target_group_id} onChange={v => sF(p => ({ ...p, target_group_id: v }))} options={[{ value: "", label: "Alle" }, ...iTG.map(t => ({ value: t.id, label: t.name }))]} />
+            <Input label="ADKAR-Phase" value={f.adkar_phase} onChange={v => sF(p => ({ ...p, adkar_phase: v }))} options={ADKAR} />
+            <Input label="Kernbotschaft" value={f.key_message} onChange={v => sF(p => ({ ...p, key_message: v }))} textarea style={{ gridColumn: "1/-1" }} />
+            <div style={{ gridColumn: "1/-1" }}><TagInput label="Kanal/Kanäle – frei anlegbar" tags={f.channelTags} onChange={v => sF(p => ({ ...p, channelTags: v }))} suggestions={tags.channels} color={T.cyan} /></div>
+            <Input label="Absender" value={f.sender_id} onChange={v => sF(p => ({ ...p, sender_id: v }))} options={iSH.map(s => ({ value: s.id, label: s.name }))} />
+            <Input label="Timing" value={f.timing} onChange={v => sF(p => ({ ...p, timing: v }))} placeholder="z.B. 4 Wochen vor Go-Live" />
+            <Input label="Frequenz" value={f.frequency} onChange={v => sF(p => ({ ...p, frequency: v }))} placeholder="z.B. einmalig, wöchentlich" />
+          </div>
+          <Btn v="primary" onClick={add} style={{ marginTop: 16 }}>Speichern</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── CHANGE SATURATION ────────────────────────────────────────────
+  const SaturationView = () => {
+    if (!ini) return <Empty icon="🌡️" title="Keine Initiative" sub="" />;
+    if (iTG.length === 0 || iIM.length === 0) return <div><h2 style={{ margin: "0 0 20px", fontSize: 22, fontWeight: 700 }}>Change Saturation</h2><Empty icon="🌡️" title="Daten fehlen" sub="Zielgruppen und Impacts benötigt" /></div>;
+    return (
+      <div>
+        <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>Change Saturation</h2>
+        <p style={{ margin: "0 0 20px", fontSize: 13, color: T.textMut }}>Wie viel Change trifft auf jede Zielgruppe?</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {iTG.map(tg => {
+            const impacts = iIM.filter(i => i.target_group_id === tg.id);
+            const totalScore = impacts.reduce((s, i) => s + (i.impact_level || 0), 0);
+            const avgScore = impacts.length ? (totalScore / impacts.length).toFixed(1) : 0;
+            const maxPossible = impacts.length * 10;
+            const satPct = maxPossible ? Math.round(totalScore / maxPossible * 100) : 0;
+            const critical = totalScore > 25;
+            const dimScores = DIMS.map(d => ({ dim: d, score: impacts.filter(i => i.dimension === d).reduce((s, i) => s + (i.impact_level || 0), 0), count: impacts.filter(i => i.dimension === d).length }));
+            return (
+              <Card key={tg.id} style={{ borderLeft: `4px solid ${critical ? T.danger : totalScore > 15 ? T.warn : T.success}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div><span style={{ fontSize: 15, fontWeight: 600 }}>{tg.name}</span><span style={{ fontSize: 12, color: T.textMut, marginLeft: 8 }}>({tg.size} Personen)</span></div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Badge color={critical ? T.danger : T.success}>Gesamt: {totalScore}</Badge>
+                    <Badge color={T.textMut}>Ø {avgScore}</Badge>
+                    {critical && <Badge color={T.danger}>⚠ KRITISCH</Badge>}
+                  </div>
+                </div>
+                <div style={{ background: T.bg, borderRadius: 6, height: 10, overflow: "hidden", marginBottom: 12 }}>
+                  <div style={{ width: `${Math.min(satPct, 100)}%`, height: "100%", background: critical ? `linear-gradient(90deg,${T.warn},${T.danger})` : `linear-gradient(90deg,${T.success},${T.accent})`, borderRadius: 6, transition: "width .3s" }} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+                  {dimScores.map(d => (
+                    <div key={d.dim} style={{ padding: "8px 10px", background: T.bg, borderRadius: T.rs, textAlign: "center" }}>
+                      <div style={{ fontSize: 10, color: T.textMut, marginBottom: 3 }}>{DIM_IC[d.dim]} {d.dim}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: d.score >= 8 ? T.danger : d.score >= 5 ? T.warn : T.success }}>{d.score}</div>
+                      <div style={{ fontSize: 10, color: T.textMut }}>{d.count} Items</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ─── HEATMAP ──────────────────────────────────────────────────────
+  const HeatmapView = () => {
+    if (!ini || iTG.length === 0 || iIM.length === 0) return <div><h2 style={{ margin: "0 0 20px", fontSize: 22, fontWeight: 700 }}>Impact Heatmap</h2><Empty icon="🔥" title="Daten fehlen" sub="" /></div>;
+    const mx = (tg, dim) => { const items = iIM.filter(i => i.target_group_id === tg && i.dimension === dim); if (!items.length) return null; return Math.max(...items.map(i => i.impact_level || 0)); };
+    return (
+      <div>
+        <h2 style={{ margin: "0 0 20px", fontSize: 22, fontWeight: 700 }}>Impact Heatmap</h2>
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr style={{ background: T.bg }}><th style={{ padding: 14, textAlign: "left", fontSize: 11, fontWeight: 700, color: T.textMut }}>ZIELGRUPPE</th>{DIMS.map(d => <th key={d} style={{ padding: 14, textAlign: "center", fontSize: 11, fontWeight: 700, color: T.textMut }}>{DIM_IC[d]} {d}</th>)}</tr></thead>
+            <tbody>{iTG.map(tg => <tr key={tg.id} style={{ borderBottom: `1px solid ${T.borderLight}` }}>
+              <td style={{ padding: 14, fontSize: 13, fontWeight: 600 }}>{tg.name} <span style={{ fontSize: 11, fontWeight: 400, color: T.textMut }}>({tg.size})</span></td>
+              {DIMS.map(d => { const v = mx(tg.id, d); return <td key={d} style={{ padding: 10, textAlign: "center" }}>{v !== null ? <ScoreDot value={v} size={44} /> : <span style={{ color: T.borderLight }}>–</span>}</td>; })}
+            </tr>)}</tbody>
+          </table>
+        </Card>
+      </div>
+    );
+  };
+
+  // ─── TIMELINE ─────────────────────────────────────────────────────
+  const TimelineView = () => {
+    if (!ini) return <Empty icon="📅" title="Keine Initiative" sub="" />;
+    const sorted = [...iAC].sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
+    const months = {}; sorted.forEach(a => { const m = a.due_date ? a.due_date.slice(0, 7) : "undatiert"; if (!months[m]) months[m] = []; months[m].push(a); });
+    return (
+      <div>
+        <h2 style={{ margin: "0 0 20px", fontSize: 22, fontWeight: 700 }}>Timeline</h2>
+        {sorted.length === 0 ? <Empty icon="📅" title="Keine Maßnahmen" sub="" /> : (
+          <div style={{ position: "relative", paddingLeft: 24 }}>
+            <div style={{ position: "absolute", left: 9, top: 0, bottom: 0, width: 2, background: T.border }} />
+            {Object.entries(months).map(([m, acts]) => (
+              <div key={m} style={{ marginBottom: 28 }}>
+                <div style={{ position: "relative", marginBottom: 12, paddingLeft: 18 }}><div style={{ position: "absolute", left: -18, top: 3, width: 14, height: 14, borderRadius: "50%", background: T.accent, border: `3px solid ${T.surface}`, boxShadow: T.shadow }} /><span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{m === "undatiert" ? "Ohne Datum" : new Date(m + "-01").toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</span></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingLeft: 18 }}>
+                  {acts.map(a => { const ow = iSH.find(s => s.id === a.owner_person_id); return (
+                    <Card key={a.id} style={{ padding: 12, borderLeft: `3px solid ${statusColor(a.status)}` }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 5 }}>{a.title}</div>
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}><Badge color={T.cyan}>{a.type}</Badge><Badge color={statusColor(a.status)}>{statusLabel(a.status)}</Badge>{ow && <Badge color={T.textMut}>👤 {ow.name}</Badge>}{(a.adkar_tags || []).map(t => <Badge key={t} color={ADKAR_C[t]}>{t}</Badge>)}</div>
+                    </Card>
+                  ); })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─── STATUS REPORT ────────────────────────────────────────────────
+  const ReportView = () => {
+    if (!ini) return <Empty icon="📋" title="Keine Initiative" sub="" />;
+    const dn = iAC.filter(a => a.status === "done").length, ip = iAC.filter(a => a.status === "in_progress").length, pl = iAC.filter(a => a.status === "planned").length;
+    const pct = iAC.length ? Math.round(dn / iAC.length * 100) : 0;
+    const hiImp = iIM.filter(i => (i.impact_level || 0) >= 8); const res = iSH.filter(s => s.readiness === "resistant" || s.readiness === "skeptical");
+    const adkar = adkarCov(iAC); const gaps = ADKAR.filter(a => adkar[a] === 0);
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Statusreport</h2><div style={{ display: "flex", gap: 8 }}><Badge color={T.accent}>{fmtDate(today())}</Badge><Btn small v="primary" onClick={() => window.print()}>📄 Als PDF drucken</Btn></div></div>
+        {alerts.length > 0 && <Card style={{ marginBottom: 14, padding: 14, borderLeft: `4px solid ${T.danger}`, background: T.dangerLt + "44" }}><SectionHead>Smart Alerts</SectionHead>{alerts.map((a, i) => <div key={i} style={{ fontSize: 12, color: a.type === "danger" ? T.danger : T.warn, marginBottom: 3 }}>{a.icon} {a.msg}</div>)}</Card>}
+        <Card style={{ marginBottom: 14, background: `linear-gradient(135deg,${T.accentLt},${T.surface})` }}>
+          <SectionHead>Executive Summary</SectionHead>
+          <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            <p style={{ margin: "0 0 4px" }}>• „{ini.name}" – Fortschritt: <strong>{pct}%</strong> ({dn}/{iAC.length})</p>
+            <p style={{ margin: "0 0 4px" }}>• {iSH.length} Stakeholder, davon {res.length} skeptisch/resistant</p>
+            <p style={{ margin: "0 0 4px" }}>• {iIM.length} Impacts, davon {hiImp.length} mit Score ≥ 8</p>
+            {gaps.length > 0 && <p style={{ margin: 0, color: T.warn }}>• ADKAR-Lücken: {gaps.join(", ")}</p>}
+          </div>
+        </Card>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Card><SectionHead>Status</SectionHead><div style={{ display: "flex", gap: 10 }}>{[["Geplant", pl, T.textMut], ["In Arbeit", ip, T.accent], ["Fertig", dn, T.success]].map(([l, v, c]) => <div key={l} style={{ flex: 1, textAlign: "center", padding: 12, background: T.bg, borderRadius: T.rs }}><div style={{ fontSize: 22, fontWeight: 700, color: c }}>{v}</div><div style={{ fontSize: 10, color: T.textMut }}>{l}</div></div>)}</div></Card>
+          <Card><SectionHead>ADKAR</SectionHead>{ADKAR.map(a => <div key={a} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><span style={{ width: 90, fontSize: 12, color: T.text }}>{a}</span><div style={{ flex: 1, background: T.bg, borderRadius: 3, height: 6, overflow: "hidden" }}><div style={{ width: `${Math.min(adkar[a] * 20, 100)}%`, height: "100%", borderRadius: 3, background: ADKAR_C[a] }} /></div><span style={{ fontSize: 11, color: T.textMut, width: 16, textAlign: "right" }}>{adkar[a]}</span></div>)}</Card>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── METHODS LIBRARY ──────────────────────────────────────────────
+  const MethodsView = () => {
+    const [filter, setFilter] = useState("Alle");
+    const methods = data.methods || METHODS;
+    const cats = ["Alle", ...new Set(methods.map(m => m.category))];
+    const filtered = filter === "Alle" ? methods : methods.filter(m => m.category === filter);
+    const [showNew, setShowNew] = useState(false);
+    const emptyMethod = { name: "", category: "Analyse", adkar: [], effort: "Mittel", duration: "", when: "", description: "", bestFor: "", steps: [""], outputs: [""] };
+    const [mf, sMf] = useState(emptyMethod);
+    const addMethod = () => { if (!mf.name) return; up(d => { if (!d.methods) d.methods = [...METHODS]; d.methods.push({ ...mf, id: uid("m"), steps: mf.steps.filter(Boolean), outputs: mf.outputs.filter(Boolean) }); }); sMf(emptyMethod); setShowNew(false); };
+    const delMethod = id => up(d => { d.methods = (d.methods || []).filter(m => m.id !== id); });
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div><h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Methoden-Bibliothek</h2><p style={{ margin: "3px 0 0", fontSize: 13, color: T.textMut }}>Bewährte CM-Formate – frei erweiterbar</p></div>
+          <Btn v="primary" onClick={() => setShowNew(true)}>＋ Neue Methode</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 4, marginBottom: 20, flexWrap: "wrap" }}>
+          {cats.map(c => <button key={c} onClick={() => setFilter(c)} style={{ padding: "6px 14px", borderRadius: T.rs, border: "none", cursor: "pointer", fontSize: 12, fontWeight: filter === c ? 600 : 400, fontFamily: T.font, background: filter === c ? T.accent : T.bg, color: filter === c ? "#fff" : T.textSec, transition: "all .12s" }}>{c}</button>)}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 14 }}>
+          {filtered.map(m => (
+            <Card key={m.id} onClick={() => setMethodDetail(m)} style={{ cursor: "pointer" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{m.name}</span>
+                <div style={{ display: "flex", gap: 4 }}><Badge color={T.purple}>{m.category}</Badge><Btn v="ghost" small onClick={e => { e.stopPropagation(); delMethod(m.id); }}>✕</Btn></div>
+              </div>
+              <p style={{ fontSize: 12, color: T.textSec, margin: "0 0 10px", lineHeight: 1.5 }}>{(m.description || "").slice(0, 120)}…</p>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                {(m.adkar || []).map(a => <Badge key={a} color={ADKAR_C[a]}>{a}</Badge>)}
+              </div>
+              <div style={{ display: "flex", gap: 12, fontSize: 11, color: T.textMut }}>
+                <span>⏱ {m.duration}</span><span>💪 {m.effort}</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+        <Modal open={!!methodDetail} onClose={() => setMethodDetail(null)} title={methodDetail?.name} wide>
+          {methodDetail && (
+            <div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <Badge color={T.purple}>{methodDetail.category}</Badge>
+                {(methodDetail.adkar || []).map(a => <Badge key={a} color={ADKAR_C[a]}>{a}</Badge>)}
+                <Badge color={T.textMut}>⏱ {methodDetail.duration}</Badge>
+                <Badge color={T.textMut}>💪 {methodDetail.effort}</Badge>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <SectionHead>Beschreibung</SectionHead>
+                <p style={{ fontSize: 13, lineHeight: 1.7, color: T.text, margin: 0 }}>{methodDetail.description}</p>
+              </div>
+              <div style={{ marginBottom: 16, padding: 14, background: T.accentLt, borderRadius: T.rs }}>
+                <SectionHead>Wann einsetzen?</SectionHead>
+                <p style={{ fontSize: 13, color: T.text, margin: 0 }}>{methodDetail.when}</p>
+              </div>
+              <div style={{ marginBottom: 16, padding: 14, background: T.successLt, borderRadius: T.rs }}>
+                <SectionHead>Best geeignet für</SectionHead>
+                <p style={{ fontSize: 13, color: T.text, margin: 0 }}>{methodDetail.bestFor}</p>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <SectionHead>Schritte</SectionHead>
+                {(methodDetail.steps || []).map((s, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: T.accent, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                    <span style={{ fontSize: 13, color: T.text, paddingTop: 3 }}>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <SectionHead>Outputs / Artefakte</SectionHead>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(methodDetail.outputs || []).map(o => <Badge key={o} color={T.cyan}>{o}</Badge>)}
+                </div>
+              </div>
+            </div>
+          )}
+        </Modal>
+        <Modal open={showNew} onClose={() => setShowNew(false)} title="Neue Methode anlegen" wide>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <Input label="Name" value={mf.name} onChange={v => sMf(p => ({ ...p, name: v }))} style={{ gridColumn: "1/-1" }} />
+            <Input label="Kategorie" value={mf.category} onChange={v => sMf(p => ({ ...p, category: v }))} options={["Analyse", "Kommunikation", "Enablement", "Intervention", "Training", "Transition", "Reinforcement", "Messung"]} />
+            <Input label="Aufwand" value={mf.effort} onChange={v => sMf(p => ({ ...p, effort: v }))} options={["Niedrig", "Mittel", "Hoch"]} />
+            <Input label="Dauer" value={mf.duration} onChange={v => sMf(p => ({ ...p, duration: v }))} placeholder="z.B. 2–4h" />
+            <Input label="Wann einsetzen?" value={mf.when} onChange={v => sMf(p => ({ ...p, when: v }))} />
+            <Input label="Beschreibung" value={mf.description} onChange={v => sMf(p => ({ ...p, description: v }))} textarea style={{ gridColumn: "1/-1" }} />
+            <Input label="Best geeignet für" value={mf.bestFor} onChange={v => sMf(p => ({ ...p, bestFor: v }))} textarea style={{ gridColumn: "1/-1" }} />
+            <div style={{ gridColumn: "1/-1" }}>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>ADKAR-Phasen</label>
+              <div style={{ display: "flex", gap: 5, marginTop: 5 }}>{ADKAR.map(a => <button key={a} onClick={() => sMf(p => ({ ...p, adkar: p.adkar.includes(a) ? p.adkar.filter(x => x !== a) : [...p.adkar, a] }))} style={{ padding: "5px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 11.5, fontFamily: T.font, fontWeight: 600, background: mf.adkar.includes(a) ? ADKAR_C[a] + "20" : T.bg, color: mf.adkar.includes(a) ? ADKAR_C[a] : T.textMut, outline: mf.adkar.includes(a) ? `2px solid ${ADKAR_C[a]}` : "none" }}>{a}</button>)}</div>
+            </div>
+            <div style={{ gridColumn: "1/-1" }}>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>Schritte (je Zeile ein Schritt)</label>
+              <textarea value={mf.steps.join("\n")} onChange={e => sMf(p => ({ ...p, steps: e.target.value.split("\n") }))} rows={4} style={{ width: "100%", marginTop: 5, background: T.bg, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: "8px 10px", fontSize: 12, fontFamily: T.font, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ gridColumn: "1/-1" }}>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>Outputs (je Zeile ein Output)</label>
+              <textarea value={mf.outputs.join("\n")} onChange={e => sMf(p => ({ ...p, outputs: e.target.value.split("\n") }))} rows={3} style={{ width: "100%", marginTop: 5, background: T.bg, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: "8px 10px", fontSize: 12, fontFamily: T.font, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            </div>
+          </div>
+          <Btn v="primary" onClick={addMethod} style={{ marginTop: 16 }}>Methode speichern</Btn>
+        </Modal>
+      </div>
+    );
+  };
+
+  // ─── IMPORT / EXPORT ──────────────────────────────────────────────
+  const IOView = () => {
+    const [txt, setTxt] = useState("");
+    const [msg, setMsg] = useState(null);
+    const doImp = () => { try { const p = JSON.parse(txt); if (p.initiatives) setData(prev => ({ ...emptyD(), ...prev, ...p })); else throw new Error("Ungültig"); setMsg({ ok: true, m: "Import erfolgreich!" }); } catch (e) { setMsg({ ok: false, m: e.message }); } };
+    const doExp = () => { const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "ocm-export.json"; a.click(); };
+    const loadDemo = () => {
+      const d = {
+        initiatives: [{ id: "INI-d1", name: "ERP Migration Wave 1", goal: "SAP ECC → S/4HANA für Finance & Controlling", scope: "DACH, 450 MA", priority: "High", time_window: "Q1–Q3 2026", milestones: [{ id: "M1", name: "Go-Live", date: "2026-05-15" }] }],
+        stakeholders: [
+          { id: "S-1", initiative_id: "INI-d1", name: "Dr. Petra Schmidt", role: "Sponsor", function: "CFO", org_unit: "Finance", influence: 9, interest: 9, readiness: "supportive", notes: "" },
+          { id: "S-2", initiative_id: "INI-d1", name: "Markus Weber", role: "PL", function: "Projektleiter", org_unit: "IT", influence: 8, interest: 8, readiness: "supportive", notes: "" },
+          { id: "S-3", initiative_id: "INI-d1", name: "Sabine Müller", role: "BR", function: "Abt.leiterin", org_unit: "Controlling", influence: 7, interest: 8, readiness: "skeptical", notes: "Sorge um Arbeitsplätze" },
+          { id: "S-4", initiative_id: "INI-d1", name: "Thomas Bauer", role: "HR", function: "HR BP", org_unit: "HR", influence: 5, interest: 5, readiness: "neutral", notes: "" },
+          { id: "S-5", initiative_id: "INI-d1", name: "Julia Fischer", role: "CM", function: "Change Managerin", org_unit: "PMO", influence: 6, interest: 9, readiness: "supportive", notes: "" },
+        ],
+        targetGroups: [
+          { id: "TG-1", initiative_id: "INI-d1", name: "Finance Buchhaltung", size: 120, org_units: ["Buchhaltung"], locations: ["Köln", "Berlin"] },
+          { id: "TG-2", initiative_id: "INI-d1", name: "Controlling", size: 85, org_units: ["Controlling"], locations: ["Köln", "München"] },
+          { id: "TG-3", initiative_id: "INI-d1", name: "IT Operations", size: 40, org_units: ["IT"], locations: ["Köln"] },
+          { id: "TG-4", initiative_id: "INI-d1", name: "Management DACH", size: 25, org_units: ["Finance", "Controlling"], locations: ["Köln", "Berlin", "München"] },
+        ],
+        impactItems: [
+          { id: "I-1", initiative_id: "INI-d1", target_group_id: "TG-1", dimension: "Technology", change_description: "Neue SAP Fiori-Oberfläche", impact_level: 9, criticality: 9, training_need: 8, comms_need: 8, dependencies: [] },
+          { id: "I-2", initiative_id: "INI-d1", target_group_id: "TG-1", dimension: "Process", change_description: "Monatsabschluss automatisiert", impact_level: 8, criticality: 8, training_need: 6, comms_need: 6, dependencies: [] },
+          { id: "I-3", initiative_id: "INI-d1", target_group_id: "TG-2", dimension: "Technology", change_description: "Embedded Analytics statt BW", impact_level: 8, criticality: 6, training_need: 8, comms_need: 5, dependencies: [] },
+          { id: "I-4", initiative_id: "INI-d1", target_group_id: "TG-2", dimension: "People", change_description: "Rolle wird strategischer", impact_level: 6, criticality: 5, training_need: 5, comms_need: 7, dependencies: [] },
+          { id: "I-5", initiative_id: "INI-d1", target_group_id: "TG-3", dimension: "Technology", change_description: "Cloud/HANA Skills", impact_level: 9, criticality: 8, training_need: 9, comms_need: 5, dependencies: [] },
+          { id: "I-6", initiative_id: "INI-d1", target_group_id: "TG-4", dimension: "People", change_description: "FK müssen Change kommunizieren", impact_level: 6, criticality: 8, training_need: 5, comms_need: 8, dependencies: [] },
+        ],
+        actions: [
+          { id: "A-1", initiative_id: "INI-d1", type: "Comms", title: "Kick-off Townhall", adkar_tags: ["Awareness"], target_group_ids: ["TG-1", "TG-2", "TG-3", "TG-4"], owner_person_id: "S-1", due_date: "2026-02-15", status: "done", depends_on: [] },
+          { id: "A-2", initiative_id: "INI-d1", type: "Comms", title: "Manager Briefing", adkar_tags: ["Awareness", "Desire"], target_group_ids: ["TG-4"], owner_person_id: "S-5", due_date: "2026-02-28", status: "done", depends_on: [] },
+          { id: "A-3", initiative_id: "INI-d1", type: "Workshop", title: "Impact-Assessment Finance", adkar_tags: ["Awareness", "Knowledge"], target_group_ids: ["TG-1"], owner_person_id: "S-5", due_date: "2026-03-15", status: "in_progress", depends_on: [] },
+          { id: "A-4", initiative_id: "INI-d1", type: "Training", title: "SAP Fiori Key-User Training", adkar_tags: ["Knowledge", "Ability"], target_group_ids: ["TG-1"], owner_person_id: "S-2", due_date: "2026-04-15", status: "planned", depends_on: [] },
+          { id: "A-5", initiative_id: "INI-d1", type: "Training", title: "Analytics Training Controlling", adkar_tags: ["Knowledge", "Ability"], target_group_ids: ["TG-2"], owner_person_id: "S-2", due_date: "2026-04-30", status: "planned", depends_on: [] },
+          { id: "A-6", initiative_id: "INI-d1", type: "Coaching", title: "FK-Coaching Change-Komm.", adkar_tags: ["Desire", "Ability"], target_group_ids: ["TG-4"], owner_person_id: "S-5", due_date: "2026-03-30", status: "planned", depends_on: [] },
+          { id: "A-7", initiative_id: "INI-d1", type: "Enablement", title: "IT Ops: HANA Admin", adkar_tags: ["Knowledge", "Ability"], target_group_ids: ["TG-3"], owner_person_id: "S-2", due_date: "2026-05-15", status: "planned", depends_on: [] },
+          { id: "A-8", initiative_id: "INI-d1", type: "Comms", title: "Go-Live Newsletter + FAQ", adkar_tags: ["Awareness", "Reinforcement"], target_group_ids: ["TG-1", "TG-2", "TG-3"], owner_person_id: "S-5", due_date: "2026-05-10", status: "planned", depends_on: [] },
+        ],
+        changeProposals: [],
+        engagements: [
+          { id: "E-1", initiative_id: "INI-d1", stakeholder_id: "S-3", date: "2026-02-20", type: "1:1-Gespräch", notes: "Bedenken wg. Stellenabbau besprochen", outcome: "Beruhigt, aber noch skeptisch", next_action: "Follow-up in 2 Wochen" },
+          { id: "E-2", initiative_id: "INI-d1", stakeholder_id: "S-1", date: "2026-02-25", type: "Teams-Call", notes: "Sponsor-Update zum Projektfortschritt", outcome: "Volle Unterstützung bestätigt", next_action: "Sponsor Roadshow planen" },
+        ],
+        commsItems: [
+          { id: "CM-1", initiative_id: "INI-d1", target_group_id: "", adkar_phase: "Awareness", key_message: "Warum migrieren wir? Vision & Nutzen für jeden Einzelnen", channel: "Townhall", sender_id: "S-1", timing: "Projektstart", frequency: "einmalig" },
+          { id: "CM-2", initiative_id: "INI-d1", target_group_id: "TG-4", adkar_phase: "Desire", key_message: "Eure Rolle als Führungskräfte im Change – so unterstützt ihr eure Teams", channel: "Workshop", sender_id: "S-5", timing: "4 Wochen vor Go-Live", frequency: "einmalig" },
+        ],
+      };
+      setData(d); setSel("INI-d1"); setNav("dashboard");
+    };
+    return (
+      <div>
+        <h2 style={{ margin: "0 0 20px", fontSize: 22, fontWeight: 700 }}>Import / Export</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Card>
+            <SectionHead>Import (JSON)</SectionHead>
+            <textarea value={txt} onChange={e => setTxt(e.target.value)} placeholder="JSON einfügen…" style={{ width: "100%", minHeight: 140, background: T.bg, border: `1px solid ${T.border}`, borderRadius: T.rs, padding: 12, fontSize: 12, fontFamily: "monospace", resize: "vertical", outline: "none", boxSizing: "border-box", color: T.text }} />
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}><Btn v="primary" onClick={doImp}>Importieren</Btn><Btn onClick={loadDemo}>Demo-Daten</Btn></div>
+            {msg && <div style={{ marginTop: 8, fontSize: 12, color: msg.ok ? T.success : T.danger }}>{msg.m}</div>}
+          </Card>
+          <Card>
+            <SectionHead>Export</SectionHead>
+            <Btn onClick={doExp} style={{ marginBottom: 8 }}>📦 JSON-Export</Btn>
+            <div style={{ marginTop: 14, padding: 12, background: T.bg, borderRadius: T.rs }}>
+              <SectionHead>Datenbestand</SectionHead>
+              {[["Initiativen", data.initiatives.length], ["Stakeholder", data.stakeholders.length], ["Zielgruppen", data.targetGroups.length], ["Impacts", data.impactItems.length], ["Maßnahmen", data.actions.length], ["Engagements", (data.engagements || []).length], ["Komm.-Items", (data.commsItems || []).length]].map(([l, v]) => (
+                <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 12 }}><span style={{ color: T.textMut }}>{l}</span><span style={{ fontWeight: 600, color: T.text }}>{v}</span></div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── RENDER ───────────────────────────────────────────────────────
+  const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, report: ReportView, methods: MethodsView, io: IOView };
+  const V = views[nav] || DashboardView;
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: T.bg, fontFamily: T.font, color: T.text, fontSize: 13.5 }}>
+      <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <style>{`@media print { body, #root { background: #fff !important; } nav, button { display: none !important; } main { padding: 20px !important; max-height: none !important; overflow: visible !important; } [style*="min-height: 100vh"] { display: block !important; } [style*="width: 244px"], [style*="width: 250px"] { display: none !important; } }`}</style>
+      <Sidebar />
+      <main style={{ flex: 1, padding: "28px 36px", overflowY: "auto", maxHeight: "100vh" }}><V /></main>
+    </div>
+  );
+}
+
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(React.createElement(App));
+  </script>
+</body>
+</html>
