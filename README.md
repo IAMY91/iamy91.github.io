@@ -5,7 +5,7 @@
 
 ### Option A: Python (empfohlen – auf den meisten Rechnern vorinstalliert)
 
-1. Lege `ocm-navigator-v3.html` in einen Ordner, z.B. `C:\OCM-Navigator\`
+1. Lege die Repo-Dateien in einen Ordner, z.B. `C:\OCM-Navigator\`
 2. Öffne ein Terminal / PowerShell in diesem Ordner
 3. Starte den Server:
 
@@ -13,7 +13,7 @@
 python -m http.server 8080
 ```
 
-4. Öffne im Browser: **http://localhost:8080/ocm-navigator-v3.html**
+4. Öffne im Browser: **http://localhost:8080/**
 
 ### Option B: Node.js
 
@@ -29,7 +29,7 @@ npx serve . -l 8080
 
 2. Teile diesen Link mit deinen Kollegen:
    ```
-   http://192.168.1.42:8080/ocm-navigator-v3.html
+   http://192.168.1.42:8080/
    ```
    (ersetze die IP durch deine eigene)
 
@@ -52,10 +52,23 @@ Da jeder Nutzer seine eigenen Daten im Browser speichert, funktioniert Teamarbei
 
 | Datei | Zweck |
 |-------|-------|
-| `ocm-navigator-v3.html` | Die komplette App (einfach im Browser öffnen) |
+| `index.html` | Startseite (wichtig für Vercel unter `/`) |
+| `adesso-ocm-navigator.html.html` | Original-Prototyp |
+| `adesso-ocm-navigator-mvp.html` | Standalone-MVP (ohne externe Frameworks) |
+| `adesso-ocm-navigator-mvp.html.html` | MVP-Kopie (React/Babel) |
 | `start-server.bat` | Windows-Doppelklick-Starter |
 | `start-server.sh` | Mac/Linux-Starter |
 | `README.md` | Diese Anleitung |
+
+## Vergleich: Original vs. MVP-Kopie
+
+Für den direkten Vergleich liegen zwei Varianten im Repo:
+
+- `adesso-ocm-navigator.html.html` (Original)
+- `adesso-ocm-navigator-mvp.html.html` (MVP-Kopie aus vorheriger Iteration)
+- `adesso-ocm-navigator-mvp.html` (**Standalone-MVP**, direkt per Doppelklick im Browser nutzbar)
+
+Du kannst die Standalone-Datei direkt öffnen (Doppelklick) oder per lokalem Server aufrufen.
 
 ## Troubleshooting
 
