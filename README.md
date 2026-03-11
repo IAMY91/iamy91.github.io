@@ -57,6 +57,16 @@ Da jeder Nutzer seine eigenen Daten im Browser speichert, funktioniert Teamarbei
 | `start-server.sh` | Mac/Linux-Starter |
 | `README.md` | Diese Anleitung |
 
+## Vergleich: Original vs. MVP-Kopie
+
+Für den direkten Vergleich liegen zwei Varianten im Repo:
+
+- `adesso-ocm-navigator.html.html` (Original)
+- `adesso-ocm-navigator-mvp.html.html` (MVP-Kopie aus vorheriger Iteration)
+- `adesso-ocm-navigator-mvp.html` (**Standalone-MVP**, direkt per Doppelklick im Browser nutzbar)
+
+Du kannst die Standalone-Datei direkt öffnen (Doppelklick) oder per lokalem Server aufrufen.
+
 ## Troubleshooting
 
 - **Seite lädt nicht:** Prüfe ob Python installiert ist (`python --version`)

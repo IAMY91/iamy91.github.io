@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>adesso OCM Navigator MVP (Standalone)</title>
+  <style>
+    :root { --blue:#006ec7; --bg:#f4f6fa; --surface:#fff; --border:#dcdfe5; --text:#222; --muted:#6b7280; }
+    *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+    body{margin:0;background:var(--bg);color:var(--text)}
+    .app{display:flex;min-height:100vh}
+    aside{width:250px;background:var(--surface);border-right:1px solid var(--border);padding:20px}
+    .brand{font-size:26px;font-weight:700;color:var(--blue)}
+    .nav button{display:block;width:100%;text-align:left;padding:10px 12px;margin:6px 0;border:0;border-radius:8px;background:transparent;cursor:pointer}
+    .nav button.active{background:#e6f0fa;color:var(--blue);font-weight:700}
+    main{flex:1;padding:24px 28px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px}
+    h1{font-size:26px;margin:0 0 12px;color:var(--blue)}
+    h2{font-size:18px;margin:0 0 10px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    input,textarea,select{width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff}
+    textarea{min-height:80px;resize:vertical}
+    .row{display:flex;gap:8px;align-items:center}
+    .btn{padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer}
+    .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    .list{margin:8px 0 0;padding-left:18px}
+    .muted{color:var(--muted);font-size:13px}
+    .pill{display:inline-block;background:#e6f0fa;color:var(--blue);padding:4px 8px;border-radius:999px;font-size:12px;margin:2px}
+    @media (max-width:900px){.app{flex-direction:column}aside{width:100%}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">adesso</div>
+      <div class="muted" style="margin-bottom:14px">OCM Navigator MVP · Standalone</div>
+      <div class="nav" id="nav"></div>
+      <hr />
+      <div class="muted" id="activeInitiative"></div>
+      <button class="btn" id="exportBtn" style="margin-top:10px;width:100%">JSON Export</button>
+      <input type="file" id="importFile" accept="application/json" style="margin-top:8px;width:100%" />
+    </aside>
+    <main id="view"></main>
+  </div>
+
+<script>
+const STORAGE_KEY = 'ocm-mvp-standalone-v1';
+const TABS = [
+  ['setup','1) Setup'],['analysis','2) Analyse'],['plan','3) Plan'],['steer','4) Steuern'],['report','5) Report']
+];
+
+const state = load() || {
+  tab:'setup', selected:null,
+  initiatives:[], stakeholders:[], impacts:[], actions:[], comms:[],
+  pulse:[], resistance:[], sponsorActions:[], decisions:[],
+};
+
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function load(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY));}catch{return null;} }
+function esc(s=''){return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));}
+function currentInitiative(){ return state.initiatives.find(i=>i.id===state.selected); }
+function byIni(list){ return list.filter(x=>x.initiative_id===state.selected); }
+function id(p){ return p+Math.random().toString(36).slice(2,8); }
+
+function renderNav(){
+  const nav = document.getElementById('nav');
+  nav.innerHTML = TABS.map(([k,l])=>`<button data-tab="${k}" class="${state.tab===k?'active':''}">${l}</button>`).join('');
+  nav.querySelectorAll('button').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab; save(); render();});
+  const ini = currentInitiative();
+  document.getElementById('activeInitiative').textContent = ini ? `Aktive Initiative: ${ini.name}` : 'Keine Initiative ausgewählt';
+}
+
+function renderSetup(){
+  const ini = currentInitiative();
+  return `
+    <h1>Setup</h1>
+    <div class="card">
+      <h2>Initiative anlegen</h2>
+      <div class="grid">
+        <div><label>Name</label><input id="iniName" placeholder="z.B. ERP Migration"/></div>
+        <div><label>Go-Live</label><input id="iniLive" type="date"/></div>
+      </div>
+      <button class="btn primary" id="addIni">Initiative speichern</button>
+      <div style="margin-top:10px">${state.initiatives.map(i=>`<span class="pill" data-sel="${i.id}">${esc(i.name)}</span>`).join('')}</div>
+    </div>
+    <div class="card">
+      <h2>Change Canvas</h2>
+      <div class="grid">
+        <div><label>Case for Change</label><textarea id="cc_case">${esc(ini?.caseForChange||'')}</textarea></div>
+        <div><label>Target State</label><textarea id="cc_target">${esc(ini?.targetState||'')}</textarea></div>
+        <div><label>Sponsor Story</label><textarea id="cc_sponsor">${esc(ini?.sponsorStory||'')}</textarea></div>
+        <div><label>Top-Meilensteine</label><textarea id="cc_miles">${esc(ini?.milestones||'')}</textarea></div>
+      </div>
+      <button class="btn" id="saveCanvas" ${ini?'':'disabled'}>Canvas speichern</button>
+    </div>`;
+}
+
+function renderAnalysis(){
+  const locked = !currentInitiative();
+  return `
+  <h1>Analyse</h1>
+  ${locked?'<p class="muted">Bitte zuerst Initiative im Setup auswählen.</p>':''}
+  <div class="grid">
+    <div class="card">
+      <h2>Stakeholder</h2>
+      <div class="row"><input id="shName" placeholder="Name" ${locked?'disabled':''}/><select id="shRead" ${locked?'disabled':''}><option>supportive</option><option>neutral</option><option>skeptical</option><option>resistant</option></select><button class="btn" id="addSh" ${locked?'disabled':''}>+</button></div>
+      <ul class="list">${byIni(state.stakeholders).map(s=>`<li>${esc(s.name)} · ${s.readiness}</li>`).join('')}</ul>
+    </div>
+    <div class="card">
+      <h2>Impact Signale</h2>
+      <div class="row"><input id="impText" placeholder="Impact" ${locked?'disabled':''}/><select id="impLvl" ${locked?'disabled':''}><option>low</option><option>medium</option><option>high</option></select><button class="btn" id="addImp" ${locked?'disabled':''}>+</button></div>
+      <ul class="list">${byIni(state.impacts).map(i=>`<li>${esc(i.text)} · ${i.level}</li>`).join('')}</ul>
+    </div>
+    <div class="card">
+      <h2>Pulse</h2>
+      <div class="row"><input id="pulseText" placeholder="Stimmung" ${locked?'disabled':''}/><input id="pulseScore" type="number" min="0" max="10" value="5" ${locked?'disabled':''}/><button class="btn" id="addPulse" ${locked?'disabled':''}>+</button></div>
+      <ul class="list">${byIni(state.pulse).map(p=>`<li>${esc(p.note)} · ${p.score}/10</li>`).join('')}</ul>
+    </div>
+    <div class="card">
+      <h2>Widerstandslog</h2>
+      <div class="row"><input id="resText" placeholder="Beobachtung" ${locked?'disabled':''}/><button class="btn" id="addRes" ${locked?'disabled':''}>+</button></div>
+      <ul class="list">${byIni(state.resistance).map(r=>`<li>${esc(r.note)}</li>`).join('')}</ul>
+    </div>
+  </div>`;
+}
+
+function renderPlan(){
+  const locked = !currentInitiative();
+  return `<h1>Plan</h1>
+  ${locked?'<p class="muted">Bitte zuerst Initiative im Setup auswählen.</p>':''}
+  <div class="grid">
+    <div class="card"><h2>Maßnahmen</h2><div class="row"><input id="actText" placeholder="Intervention" ${locked?'disabled':''}/><button class="btn" id="addAct" ${locked?'disabled':''}>+</button></div><ul class="list">${byIni(state.actions).map(a=>`<li>${esc(a.text)}</li>`).join('')}</ul></div>
+    <div class="card"><h2>Kommunikation</h2><div class="row"><input id="comText" placeholder="Botschaft / Kanal" ${locked?'disabled':''}/><button class="btn" id="addCom" ${locked?'disabled':''}>+</button></div><ul class="list">${byIni(state.comms).map(c=>`<li>${esc(c.text)}</li>`).join('')}</ul></div>
+    <div class="card" style="grid-column:1/-1"><h2>Sponsor-Plan</h2><div class="row"><input id="sponText" placeholder="Benötigte Sponsor-Aktion" ${locked?'disabled':''}/><button class="btn" id="addSpon" ${locked?'disabled':''}>+</button></div><ul class="list">${byIni(state.sponsorActions).map(s=>`<li>${esc(s.text)}</li>`).join('')}</ul></div>
+  </div>`;
+}
+
+function renderSteer(){
+  const locked = !currentInitiative();
+  const risky = byIni(state.stakeholders).filter(s=>['skeptical','resistant'].includes(s.readiness)).length;
+  return `<h1>Steuern</h1>
+  ${locked?'<p class="muted">Bitte zuerst Initiative im Setup auswählen.</p>':''}
+  <div class="grid">
+    <div class="card"><h2>Signal-Cockpit</h2><p>Stakeholder: <b>${byIni(state.stakeholders).length}</b></p><p>Risiko-Stakeholder: <b>${risky}</b></p><p>Impacts: <b>${byIni(state.impacts).length}</b></p><p>Offene Maßnahmen: <b>${byIni(state.actions).length}</b></p></div>
+    <div class="card"><h2>Offene Entscheidungen</h2><div class="row"><input id="decText" placeholder="Entscheidung benötigt" ${locked?'disabled':''}/><button class="btn" id="addDec" ${locked?'disabled':''}>+</button></div><ul class="list">${byIni(state.decisions).map(d=>`<li>${esc(d.text)}</li>`).join('')}</ul></div>
+  </div>`;
+}
+
+function renderReport(){
+  const ini = currentInitiative();
+  if(!ini) return `<h1>Report</h1><p class="muted">Bitte zuerst Initiative im Setup auswählen.</p>`;
+  const risky = byIni(state.stakeholders).filter(s=>['skeptical','resistant'].includes(s.readiness)).slice(0,3);
+  return `<h1>Sponsor One-Pager</h1>
+  <div class="card"><h2>${esc(ini.name)}</h2><p class="muted">${esc(ini.goLive||'ohne Go-Live-Datum')}</p></div>
+  <div class="grid">
+    <div class="card"><h2>Top-Risiken</h2><ul class="list">${risky.map(r=>`<li>${esc(r.name)} · ${r.readiness}</li>`).join('') || '<li>Keine</li>'}</ul></div>
+    <div class="card"><h2>Offene Sponsor-Entscheidungen</h2><ul class="list">${byIni(state.decisions).map(d=>`<li>${esc(d.text)}</li>`).join('') || '<li>Keine</li>'}</ul></div>
+    <div class="card"><h2>Benötigte Unterstützung</h2><ul class="list">${byIni(state.sponsorActions).map(s=>`<li>${esc(s.text)}</li>`).join('') || '<li>Keine</li>'}</ul></div>
+    <div class="card"><h2>Kommunikation/Befähigung</h2><p>Kommunikationsitems: <b>${byIni(state.comms).length}</b></p><p>Maßnahmen: <b>${byIni(state.actions).length}</b></p></div>
+  </div>
+  <button class="btn primary" onclick="window.print()">Als PDF drucken</button>`;
+}
+
+function render(){
+  renderNav();
+  const view = document.getElementById('view');
+  view.innerHTML = ({setup:renderSetup,analysis:renderAnalysis,plan:renderPlan,steer:renderSteer,report:renderReport}[state.tab]||renderSetup)();
+  bindHandlers();
+}
+
+function bindHandlers(){
+  const on = (id, fn) => { const el = document.getElementById(id); if(el) el.onclick = fn; };
+  on('addIni', ()=>{
+    const name = document.getElementById('iniName').value.trim();
+    const goLive = document.getElementById('iniLive').value;
+    if(!name) return;
+    const ini={id:id('INI-'),name,goLive,caseForChange:'',targetState:'',sponsorStory:'',milestones:''};
+    state.initiatives.push(ini); state.selected=ini.id; save(); render();
+  });
+  document.querySelectorAll('[data-sel]').forEach(el=>el.onclick=()=>{state.selected=el.dataset.sel; save(); render();});
+  on('saveCanvas', ()=>{
+    const ini=currentInitiative(); if(!ini) return;
+    ini.caseForChange=document.getElementById('cc_case').value;
+    ini.targetState=document.getElementById('cc_target').value;
+    ini.sponsorStory=document.getElementById('cc_sponsor').value;
+    ini.milestones=document.getElementById('cc_miles').value;
+    save(); alert('Change Canvas gespeichert.');
+  });
+  on('addSh', ()=> addItem('stakeholders',{name:document.getElementById('shName').value.trim(),readiness:document.getElementById('shRead').value}));
+  on('addImp', ()=> addItem('impacts',{text:document.getElementById('impText').value.trim(),level:document.getElementById('impLvl').value}));
+  on('addPulse', ()=> addItem('pulse',{note:document.getElementById('pulseText').value.trim(),score:Number(document.getElementById('pulseScore').value)||0}));
+  on('addRes', ()=> addItem('resistance',{note:document.getElementById('resText').value.trim()}));
+  on('addAct', ()=> addItem('actions',{text:document.getElementById('actText').value.trim()}));
+  on('addCom', ()=> addItem('comms',{text:document.getElementById('comText').value.trim()}));
+  on('addSpon', ()=> addItem('sponsorActions',{text:document.getElementById('sponText').value.trim()}));
+  on('addDec', ()=> addItem('decisions',{text:document.getElementById('decText').value.trim()}));
+}
+
+function addItem(bucket, payload){
+  if(!state.selected || !Object.values(payload)[0]) return;
+  state[bucket].push({id:id('X-'), initiative_id:state.selected, ...payload});
+  save(); render();
+}
+
+document.getElementById('exportBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ocm-mvp-standalone.json'; a.click();
+};
+document.getElementById('importFile').onchange = (e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try{ const parsed = JSON.parse(r.result); Object.assign(state, parsed); save(); render(); alert('Import erfolgreich'); }catch{ alert('Ungültige JSON-Datei'); } };
+  r.readAsText(f);
+};
+
+render();
+</script>
+</body>
+</html>
