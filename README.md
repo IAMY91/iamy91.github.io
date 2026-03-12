@@ -72,3 +72,10 @@ Nach dem Start des lokalen Servers kannst du beide Dateien direkt im Browser öf
 - **Kollegen können nicht zugreifen:** Firewall-Regel prüfen (s.o.)
 - **Daten weg nach Browser-Cache löschen:** Regelmäßig JSON exportieren als Backup!
 - **Port 8080 belegt:** Anderen Port nutzen, z.B. `python -m http.server 3000`
+
+## Strategische Weiterentwicklung
+
+Eine strukturierte Empfehlung zur Weiterentwicklung der Plattform aus Sicht Organisationsentwicklung, Transformation, Change, Teamentwicklung und Leadership gibt es hier:
+
+- `plattform-weiterentwicklung.md`
+- `plattform-weiterentwicklung.html` (interaktive HTML-Roadmap zur strategischen Weiterentwicklung)

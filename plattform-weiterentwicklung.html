@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCM Navigator – Strategische Weiterentwicklung</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --text: #0e2038;
+      --muted: #4a5d75;
+      --primary: #0050a0;
+      --primary-soft: #d9e9ff;
+      --accent: #ee3d8f;
+      --border: #d7e1ee;
+      --success: #1f8d54;
+      --warn: #b77400;
+      --danger: #b42318;
+      --radius: 14px;
+      --shadow: 0 6px 22px rgba(14, 32, 56, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+
+    .hero {
+      background: linear-gradient(140deg, #002e62, #0050a0 70%, #287bd2);
+      color: #fff;
+      border-radius: 18px;
+      padding: 26px 26px 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+    }
+
+    .hero h1 { margin: 0 0 8px; font-size: 30px; }
+    .hero p { margin: 0; opacity: 0.95; max-width: 900px; }
+
+    .stats {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .stat {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .stat strong { display: block; font-size: 22px; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .filters, .phase-switch {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .bar {
+      height: 8px;
+      background: #e7edf5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: var(--primary);
+    }
+
+    .prio {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: -4px;
+    }
+
+    .phase-plan {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .phase-plan h2 { margin: 0 0 10px; }
+
+    .phase-columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+    }
+
+    .phase {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      background: #fbfdff;
+    }
+
+    .phase h3 { margin: 0 0 6px; font-size: 17px; }
+    .phase ul { margin: 0; padding-left: 18px; }
+
+    .tag-ok { color: var(--success); font-weight: 700; }
+    .tag-warn { color: var(--warn); font-weight: 700; }
+    .tag-risk { color: var(--danger); font-weight: 700; }
+
+    footer {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Strategische Plattform-Weiterentwicklung</h1>
+      <p>Roadmap für den OCM Navigator aus Sicht Organisationsentwicklung, Transformationsbegleitung, Change Management, Teamentwicklung und Leadership Coaching.</p>
+      <div class="stats" id="stats"></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="filters" id="filters"></div>
+      <div class="phase-switch" id="phaseSwitch"></div>
+    </section>
+
+    <section class="grid" id="capabilityGrid"></section>
+
+    <section class="phase-plan">
+      <h2>Empfohlene Umsetzung in 12 Monaten</h2>
+      <div class="phase-columns" id="phaseColumns"></div>
+    </section>
+
+    <footer>
+      Stand: Strategiemodell v1 · Eigenständige HTML-Ansicht für Priorisierung & Kommunikation.
+    </footer>
+  </main>
+
+  <script>
+    const capabilities = [
+      { domain: "Portfolio-Governance", title: "Abhängigkeitsmanagement", value: "Cross-Programm Dependencies sichtbar machen", impact: 9, effort: 6, phase: 1, risk: "warn" },
+      { domain: "Portfolio-Governance", title: "Kapazitäts- und Konfliktanalyse", value: "Überlastungen pro Zielgruppe früh erkennen", impact: 9, effort: 7, phase: 1, risk: "risk" },
+      { domain: "Wirkungsmessung", title: "Outcome-KPI-Set", value: "Adoption und Verhaltensänderung messen", impact: 10, effort: 5, phase: 1, risk: "ok" },
+      { domain: "Wirkungsmessung", title: "Leading-/Lagging-Trends", value: "Frühindikatoren statt reiner Statussicht", impact: 8, effort: 6, phase: 2, risk: "warn" },
+      { domain: "Leadership", title: "Führungskräfte-Cockpit", value: "Konkrete Führungsaufgaben je Zeitraum", impact: 9, effort: 6, phase: 2, risk: "ok" },
+      { domain: "Leadership", title: "Sponsor-Effectiveness-Tracking", value: "Wirksamkeit von Sponsor-Aktionen nachhalten", impact: 8, effort: 5, phase: 2, risk: "warn" },
+      { domain: "Teamentwicklung", title: "Team-Pulse & Retros", value: "Lernschleifen auf Team-Ebene etablieren", impact: 8, effort: 5, phase: 2, risk: "ok" },
+      { domain: "Kollaboration", title: "Mehrbenutzerfähigkeit & Rollen", value: "Skalierbare, sichere Zusammenarbeit", impact: 10, effort: 8, phase: 1, risk: "risk" },
+      { domain: "Kollaboration", title: "Audit Trail & Freigaben", value: "Transparenz und Governance absichern", impact: 8, effort: 7, phase: 2, risk: "warn" },
+      { domain: "Integrationen", title: "Teams/Planner/Jira/BI", value: "Change-Arbeit in bestehende Tools integrieren", impact: 9, effort: 8, phase: 3, risk: "risk" },
+      { domain: "AI", title: "Copilot für Maßnahmen", value: "Kontextbasierte Empfehlungen und Entwürfe", impact: 9, effort: 7, phase: 3, risk: "warn" },
+      { domain: "AI", title: "Anomalie- und Risikodetektion", value: "Proaktive Warnung bei kritischen Trends", impact: 8, effort: 8, phase: 3, risk: "risk" }
+    ];
+
+    const phases = {
+      1: ["Mehrbenutzerfähigkeit & Rollenmodell", "Portfolio-Governance inkl. Eskalationslogik", "Outcome-KPI-Set und Dashboards"],
+      2: ["Führungskräfte-Cockpit und Sponsor-Tracking", "Team-Pulse / Retros / Reinforcement", "Risiko- und Entscheidungslogs standardisieren"],
+      3: ["Integrationen in Collaboration- & PM-Tools", "AI-Copilot für Maßnahmen & Kommunikation", "Benchmarking und Best-Practice-Recommender"]
+    };
+
+    let selectedDomain = "Alle";
+    let selectedPhase = "Alle";
+
+    const domainOptions = ["Alle", ...new Set(capabilities.map(c => c.domain))];
+
+    const $ = (id) => document.getElementById(id);
+
+    function riskLabel(risk) {
+      if (risk === "ok") return '<span class="tag-ok">● niedriges Implementierungsrisiko</span>';
+      if (risk === "warn") return '<span class="tag-warn">● mittleres Implementierungsrisiko</span>';
+      return '<span class="tag-risk">● hohes Implementierungsrisiko</span>';
+    }
+
+    function priority(item) {
+      return Math.round((item.impact * 1.6) - item.effort);
+    }
+
+    function filtered() {
+      return capabilities
+        .filter(c => selectedDomain === "Alle" || c.domain === selectedDomain)
+        .filter(c => selectedPhase === "Alle" || String(c.phase) === selectedPhase)
+        .sort((a, b) => priority(b) - priority(a));
+    }
+
+    function renderFilters() {
+      $("filters").innerHTML = domainOptions.map(d =>
+        `<button class="${d === selectedDomain ? "active" : ""}" data-domain="${d}">${d}</button>`
+      ).join("");
+
+      $("phaseSwitch").innerHTML = ["Alle", "1", "2", "3"].map(p =>
+        `<button class="${p === selectedPhase ? "active" : ""}" data-phase="${p}">${p === "Alle" ? "Alle Phasen" : `Phase ${p}`}</button>`
+      ).join("");
+
+      $("filters").querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", () => { selectedDomain = btn.dataset.domain; render(); });
+      });
+
+      $("phaseSwitch").querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", () => { selectedPhase = btn.dataset.phase; render(); });
+      });
+    }
+
+    function renderGrid() {
+      const data = filtered();
+      $("capabilityGrid").innerHTML = data.map(item => {
+        const p = priority(item);
+        const norm = Math.max(15, Math.min(100, p * 6));
+        return `
+          <article class="card">
+            <span class="chip">${item.domain} · Phase ${item.phase}</span>
+            <h3>${item.title}</h3>
+            <p>${item.value}</p>
+            <div class="meta">
+              <span>Impact: <strong>${item.impact}/10</strong></span>
+              <span>Effort: <strong>${item.effort}/10</strong></span>
+            </div>
+            <div class="bar"><span style="width:${norm}%"></span></div>
+            <div class="prio"><span>Prioritätswert</span><strong>${p}</strong></div>
+            ${riskLabel(item.risk)}
+          </article>
+        `;
+      }).join("");
+
+      if (!data.length) {
+        $("capabilityGrid").innerHTML = '<article class="card"><h3>Keine Treffer</h3><p>Bitte Filter anpassen.</p></article>';
+      }
+    }
+
+    function renderPhases() {
+      $("phaseColumns").innerHTML = Object.entries(phases).map(([p, items]) => `
+        <section class="phase">
+          <h3>Phase ${p}</h3>
+          <ul>${items.map(i => `<li>${i}</li>`).join("")}</ul>
+        </section>
+      `).join("");
+    }
+
+    function renderStats() {
+      const total = capabilities.length;
+      const avgImpact = (capabilities.reduce((a, c) => a + c.impact, 0) / total).toFixed(1);
+      const avgEffort = (capabilities.reduce((a, c) => a + c.effort, 0) / total).toFixed(1);
+      const phase1 = capabilities.filter(c => c.phase === 1).length;
+
+      $("stats").innerHTML = `
+        <div class="stat"><small>Fähigkeiten gesamt</small><strong>${total}</strong></div>
+        <div class="stat"><small>Ø Impact</small><strong>${avgImpact}/10</strong></div>
+        <div class="stat"><small>Ø Effort</small><strong>${avgEffort}/10</strong></div>
+        <div class="stat"><small>Quick Wins (Phase 1)</small><strong>${phase1}</strong></div>
+      `;
+    }
+
+    function render() {
+      renderFilters();
+      renderGrid();
+      renderPhases();
+      renderStats();
+    }
+
+    render();
+  </script>
+</body>
+</html>
