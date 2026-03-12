@@ -8,7 +8,7 @@ This file provides guidance for AI assistants working in this repository.
 
 **OCM Navigator** is a single-file, browser-based Organizational Change Management (OCM) tool written in German. It is hosted as a GitHub Pages static site at `iamy91.github.io`.
 
-The entire application lives in one self-contained HTML file (`ocm-navigator-v3.html`). There is no build step, no package manager, and no server-side code.
+The entire application lives in one self-contained HTML file (`adesso-ocm-navigator_NEW6.html`). There is no build step, no package manager, and no server-side code.
 
 ---
 
@@ -16,7 +16,7 @@ The entire application lives in one self-contained HTML file (`ocm-navigator-v3.
 
 ```
 iamy91.github.io/
-├── ocm-navigator-v3.html   # The entire application (~1136 lines)
+├── adesso-ocm-navigator_NEW6.html   # The entire application (~1136 lines)
 ├── README.md               # German-language setup/hosting instructions
 ├── start-server.sh         # Mac/Linux local server launcher (Python / npx)
 ├── start-server.bat        # Windows local server launcher (Python / npx)
@@ -48,7 +48,7 @@ To preview the app locally, serve the directory with any HTTP server:
 ```bash
 # Python (recommended, usually pre-installed)
 python3 -m http.server 8080
-# Then open: http://localhost:8080/ocm-navigator-v3.html
+# Then open: http://localhost:8080/adesso-ocm-navigator_NEW6.html
 
 # Or use the convenience scripts:
 ./start-server.sh          # Mac/Linux
@@ -58,7 +58,7 @@ start-server.bat           # Windows (double-click)
 npx serve . -l 8080
 ```
 
-There is no `npm install`, no compilation, and no watch mode. Edit `ocm-navigator-v3.html` and hard-refresh the browser to see changes.
+There is no `npm install`, no compilation, and no watch mode. Edit `adesso-ocm-navigator_NEW6.html` and hard-refresh the browser to see changes.
 
 ---
 
@@ -202,4 +202,4 @@ Data is stored per-browser in `localStorage`. To share data between users:
 - No environment variables
 - No TypeScript
 
-When making changes, edit `ocm-navigator-v3.html` directly. Validate by serving the file locally and testing in a browser.
+When making changes, edit `adesso-ocm-navigator_NEW6.html` directly. Validate by serving the file locally and testing in a browser.

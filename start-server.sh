@@ -14,8 +14,8 @@ else
     IP="<deine-ip>"
 fi
 
-echo "  Lokal:    http://localhost:8080/ocm-navigator-v3.html"
-echo "  Netzwerk: http://$IP:8080/ocm-navigator-v3.html"
+echo "  Lokal:    http://localhost:8080/adesso-ocm-navigator_NEW6.html"
+echo "  Netzwerk: http://$IP:8080/adesso-ocm-navigator_NEW6.html"
 echo ""
 echo "  Server beenden: Ctrl+C"
 echo ""

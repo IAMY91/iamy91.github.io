@@ -16,8 +16,8 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /c:"IPv4"') do (
 :found
 set IP=%IP: =%
 
-echo  Lokal:    http://localhost:8080/ocm-navigator-v3.html
-echo  Netzwerk: http://%IP%:8080/ocm-navigator-v3.html
+echo  Lokal:    http://localhost:8080/adesso-ocm-navigator_NEW6.html
+echo  Netzwerk: http://%IP%:8080/adesso-ocm-navigator_NEW6.html
 echo.
 echo  Diesen Link an Kollegen im selben Netzwerk teilen!
 echo  Server beenden: Ctrl+C oder Fenster schliessen
