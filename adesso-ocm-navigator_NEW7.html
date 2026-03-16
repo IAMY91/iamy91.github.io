@@ -1990,8 +1990,10 @@
         if (!ini) return <Empty icon="📈" title="Keine Initiative gewählt" sub="Wähle eine Initiative im Portfolio" />;
         const [showKPI, setShowKPI] = useState(false);
         const [showHyp, setShowHyp] = useState(false);
+        const [showBen, setShowBen] = useState(false);
         const [fKPI, setFKPI] = useState({ title: "", target: "", baseline: "", unit: "", current: "", trend: "stable" });
         const [fHyp, setFHyp] = useState({ statement: "", assumption: "", metric: "", result: "", status: "open" });
+        const [fBen, setFBen] = useState({ title: "", category: "financial", value: "", unit: "", realization_date: "", owner: "", status: "expected", notes: "" });
         const saveKPI = () => {
           if (!fKPI.title) return;
           up(d => { if (!d.outcomeKPIs) d.outcomeKPIs = []; d.outcomeKPIs.push({ id: uid("KPI-"), initiative_id: sel, ...fKPI }); });
@@ -2002,13 +2004,21 @@
           up(d => { if (!d.hypotheses) d.hypotheses = []; d.hypotheses.push({ id: uid("HYP-"), initiative_id: sel, ...fHyp }); });
           setFHyp({ statement: "", assumption: "", metric: "", result: "", status: "open" }); setShowHyp(false);
         };
+        const saveBen = () => {
+          if (!fBen.title) return;
+          up(d => { if (!d.benefits) d.benefits = []; d.benefits.push({ id: uid("BEN-"), initiative_id: sel, ...fBen }); });
+          setFBen({ title: "", category: "financial", value: "", unit: "", realization_date: "", owner: "", status: "expected", notes: "" }); setShowBen(false);
+        };
         const trendIcon = t => t === "up" ? "📈" : t === "down" ? "📉" : "➡️";
         const hypStatusColor = s => s === "confirmed" ? T.success : s === "rejected" ? T.danger : T.textMut;
+        const benCatColor = c => c === "financial" ? T.success : c === "quality" ? T.accent : c === "strategic" ? T.purple : T.warn;
+        const benStatusColor = s => s === "realized" ? T.success : s === "partial" ? T.warn : T.textMut;
         return (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Wirkungsmessung</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – KPIs, Hypothesen & Nutzen</p></div>
               <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowBen(true)}>＋ Nutzen</Btn>
                 <Btn v="default" onClick={() => setShowHyp(true)}>＋ Hypothese</Btn>
                 <Btn v="primary" onClick={() => setShowKPI(true)}>＋ KPI</Btn>
               </div>
@@ -2071,6 +2081,31 @@
                 </div>
               )}
             </div>
+            <div style={{ marginTop: 20 }}>
+              <SectionHead>Nutzenpotenziale ({iBEN.length})</SectionHead>
+              {iBEN.length === 0 ? <Empty icon="💎" title="Keine Nutzenpotenziale" sub="Dokumentiere erwartete Vorteile der Initiative" action={<Btn v="primary" onClick={() => setShowBen(true)}>Nutzen anlegen</Btn>} /> : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 12 }}>
+                  {iBEN.map(b => (
+                    <Card key={b.id} style={{ borderTop: `3px solid ${benCatColor(b.category)}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{b.title}</span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Badge color={benCatColor(b.category)}>{b.category}</Badge>
+                          <Btn v="ghost" small onClick={() => up(d => { d.benefits = (d.benefits || []).filter(x => x.id !== b.id); })}>✕</Btn>
+                        </div>
+                      </div>
+                      {(b.value || b.unit) && <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 4 }}>{b.value}{b.unit}</div>}
+                      {b.realization_date && <div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>📅 Realisierung: {fmtDate(b.realization_date)}</div>}
+                      {b.owner && <div style={{ fontSize: 11, color: T.textMut, marginBottom: 6 }}>👤 {b.owner}</div>}
+                      {b.notes && <div style={{ fontSize: 12, color: T.textSec }}>{b.notes}</div>}
+                      <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
+                        {["expected","partial","realized"].map(s => <Btn key={s} small v={b.status === s ? "primary" : "default"} onClick={() => up(d => { const bi = (d.benefits || []).find(x => x.id === b.id); if (bi) bi.status = s; })} style={{ color: b.status === s ? undefined : benStatusColor(s) }}>{s === "expected" ? "Erwartet" : s === "partial" ? "Teilw." : "Realisiert"}</Btn>)}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
             <Modal open={showKPI} onClose={() => setShowKPI(false)} title="Neuer KPI">
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Input label="Bezeichnung" value={fKPI.title} onChange={v => setFKPI(p => ({ ...p, title: v }))} />
@@ -2092,6 +2127,20 @@
               </div>
               <Btn v="primary" onClick={saveHyp} style={{ marginTop: 16 }}>Speichern</Btn>
             </Modal>
+            <Modal open={showBen} onClose={() => setShowBen(false)} title="Nutzenpotenzial anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Bezeichnung" value={fBen.title} onChange={v => setFBen(p => ({ ...p, title: v }))} />
+                <Input label="Kategorie" value={fBen.category} onChange={v => setFBen(p => ({ ...p, category: v }))} options={["financial","quality","strategic","risk_reduction","efficiency"]} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Input label="Wert / Größenordnung" value={fBen.value} onChange={v => setFBen(p => ({ ...p, value: v }))} />
+                  <Input label="Einheit (z.B. €, %, Tage)" value={fBen.unit} onChange={v => setFBen(p => ({ ...p, unit: v }))} />
+                </div>
+                <Input label="Realisierungsdatum" value={fBen.realization_date} onChange={v => setFBen(p => ({ ...p, realization_date: v }))} type="date" />
+                <Input label="Verantwortlich" value={fBen.owner} onChange={v => setFBen(p => ({ ...p, owner: v }))} />
+                <Input label="Notizen" value={fBen.notes} onChange={v => setFBen(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveBen} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
           </div>
         );
       };
@@ -2101,8 +2150,10 @@
         if (!ini) return <Empty icon="👔" title="Keine Initiative gewählt" sub="" />;
         const [showTask, setShowTask] = useState(false);
         const [showDL, setShowDL] = useState(false);
+        const [showPB, setShowPB] = useState(false);
         const [fTask, setFTask] = useState({ title: "", owner: "", due_date: "", status: "open", description: "" });
         const [fDL, setFDL] = useState({ date: today(), title: "", decision: "", rationale: "", owner: "" });
+        const [fPB, setFPB] = useState({ title: "", audience: "", steps: "", purpose: "", notes: "" });
         const saveTask = () => {
           if (!fTask.title) return;
           up(d => { if (!d.leadershipTasks) d.leadershipTasks = []; d.leadershipTasks.push({ id: uid("LT-"), initiative_id: sel, ...fTask }); });
@@ -2112,6 +2163,11 @@
           if (!fDL.title) return;
           up(d => { if (!d.decisionLog) d.decisionLog = []; d.decisionLog.push({ id: uid("DL-"), initiative_id: sel, ...fDL }); });
           setFDL({ date: today(), title: "", decision: "", rationale: "", owner: "" }); setShowDL(false);
+        };
+        const savePB = () => {
+          if (!fPB.title) return;
+          up(d => { if (!d.playbooks) d.playbooks = []; d.playbooks.push({ id: uid("PB-"), initiative_id: sel, ...fPB }); });
+          setFPB({ title: "", audience: "", steps: "", purpose: "", notes: "" }); setShowPB(false);
         };
         const taskStatusColor = s => s === "done" ? T.success : s === "in_progress" ? T.accent : T.textMut;
         const sponsorProgress = (() => {
@@ -2124,6 +2180,7 @@
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Führung & Sponsoring</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – Leadership-Aufgaben & Entscheidungslog</p></div>
               <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowPB(true)}>＋ Playbook</Btn>
                 <Btn v="default" onClick={() => setShowDL(true)}>＋ Entscheidung</Btn>
                 <Btn v="primary" onClick={() => setShowTask(true)}>＋ Aufgabe</Btn>
               </div>
@@ -2195,6 +2252,26 @@
                 </table>
               )}
             </Card>
+            {iPB.length > 0 && (
+              <Card style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <SectionHead>Playbooks ({iPB.length})</SectionHead>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 }}>
+                  {iPB.map(pb => (
+                    <Card key={pb.id} style={{ background: T.bg, padding: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>📘 {pb.title}</span>
+                        <Btn v="ghost" small onClick={() => up(d => { d.playbooks = (d.playbooks || []).filter(x => x.id !== pb.id); })}>✕</Btn>
+                      </div>
+                      {pb.audience && <div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>Zielgruppe: {pb.audience}</div>}
+                      {pb.purpose && <div style={{ fontSize: 12, color: T.textSec, marginBottom: 6 }}>{pb.purpose}</div>}
+                      {pb.steps && <div style={{ fontSize: 12, color: T.text, whiteSpace: "pre-line", background: T.surface, padding: "8px 10px", borderRadius: T.rs }}>{pb.steps}</div>}
+                    </Card>
+                  ))}
+                </div>
+              </Card>
+            )}
             <Modal open={showTask} onClose={() => setShowTask(false)} title="Leadership-Aufgabe">
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Input label="Aufgabe" value={fTask.title} onChange={v => setFTask(p => ({ ...p, title: v }))} />
@@ -2214,6 +2291,16 @@
               </div>
               <Btn v="primary" onClick={saveDL} style={{ marginTop: 16 }}>Speichern</Btn>
             </Modal>
+            <Modal open={showPB} onClose={() => setShowPB(false)} title="Playbook anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Titel" value={fPB.title} onChange={v => setFPB(p => ({ ...p, title: v }))} />
+                <Input label="Zielgruppe (wer nutzt dieses Playbook?)" value={fPB.audience} onChange={v => setFPB(p => ({ ...p, audience: v }))} />
+                <Input label="Zweck / Situation" value={fPB.purpose} onChange={v => setFPB(p => ({ ...p, purpose: v }))} textarea />
+                <Input label="Schritte / Ablauf (eine Zeile pro Schritt)" value={fPB.steps} onChange={v => setFPB(p => ({ ...p, steps: v }))} textarea />
+                <Input label="Notizen" value={fPB.notes} onChange={v => setFPB(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={savePB} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
           </div>
         );
       };
@@ -2223,8 +2310,12 @@
         if (!ini) return <Empty icon="🧩" title="Keine Initiative gewählt" sub="" />;
         const [showPC, setShowPC] = useState(false);
         const [showMul, setShowMul] = useState(false);
+        const [showRL, setShowRL] = useState(false);
+        const [showTM, setShowTM] = useState(false);
         const [fPC, setFPC] = useState({ date: today(), group: "", score: 5, notes: "" });
         const [fMul, setFMul] = useState({ name: "", role: "", team: "", influence: 5, notes: "" });
+        const [fRL, setFRL] = useState({ title: "", trigger: "", effect: "", notes: "" });
+        const [fTM, setFTM] = useState({ team: "", dimension: "collaboration", score: 5, date: today(), notes: "" });
         const savePC = () => {
           if (!fPC.group) return;
           up(d => { if (!d.pulseChecks) d.pulseChecks = []; d.pulseChecks.push({ id: uid("PC-"), initiative_id: sel, ...fPC, score: Number(fPC.score) }); });
@@ -2235,6 +2326,21 @@
           up(d => { if (!d.multipliers) d.multipliers = []; d.multipliers.push({ id: uid("MUL-"), initiative_id: sel, ...fMul, influence: Number(fMul.influence) }); });
           setFMul({ name: "", role: "", team: "", influence: 5, notes: "" }); setShowMul(false);
         };
+        const saveRL = () => {
+          if (!fRL.title) return;
+          up(d => { if (!d.reinforcementLoops) d.reinforcementLoops = []; d.reinforcementLoops.push({ id: uid("RL-"), initiative_id: sel, ...fRL }); });
+          setFRL({ title: "", trigger: "", effect: "", notes: "" }); setShowRL(false);
+        };
+        const saveTM = () => {
+          if (!fTM.team) return;
+          up(d => { if (!d.teamMaturity) d.teamMaturity = []; d.teamMaturity.push({ id: uid("TM-"), initiative_id: sel, ...fTM, score: Number(fTM.score) }); });
+          setFTM({ team: "", dimension: "collaboration", score: 5, date: today(), notes: "" }); setShowTM(false);
+        };
+        const TM_DIMS = ["collaboration","competence","commitment","communication","clarity"];
+        const tmByDim = TM_DIMS.map(dim => {
+          const entries = iTM.filter(t => t.dimension === dim).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+          return { dim, latest: entries[0] || null };
+        });
         const latestPC = iTG.map(tg => {
           const checks = iPC.filter(p => p.group === tg.name).sort((a, b) => b.date?.localeCompare(a.date));
           return { tg, latest: checks[0] || null };
@@ -2244,6 +2350,8 @@
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Teamentwicklung</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – Pulse Checks & Multiplikatoren</p></div>
               <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowTM(true)}>＋ Reife-Check</Btn>
+                <Btn v="default" onClick={() => setShowRL(true)}>＋ Verstärkung</Btn>
                 <Btn v="default" onClick={() => setShowMul(true)}>＋ Multiplikator</Btn>
                 <Btn v="primary" onClick={() => setShowPC(true)}>＋ Pulse Check</Btn>
               </div>
@@ -2289,9 +2397,31 @@
                 )}
               </Card>
             </div>
-            {iRL.length > 0 && (
-              <Card>
+            <Card style={{ marginTop: 14 }}>
+              <SectionHead>Team-Reifegrad ({iTM.length} Einträge)</SectionHead>
+              {iTM.length === 0 ? <Empty icon="📐" title="Keine Reife-Checks" sub="Erfasse den Entwicklungsstand des Teams" action={<Btn v="primary" onClick={() => setShowTM(true)}>Reife-Check anlegen</Btn>} /> : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {tmByDim.map(({ dim, latest }) => {
+                    const c = latest ? (latest.score >= 7 ? T.success : latest.score >= 4 ? T.warn : T.danger) : T.borderLight;
+                    return (
+                      <div key={dim} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13, textTransform: "capitalize" }}>{dim}</span>
+                          {latest ? <Badge color={c}>{latest.score}/10</Badge> : <Badge color={T.textMut}>Nicht bewertet</Badge>}
+                        </div>
+                        <div style={{ background: T.surface, borderRadius: 3, height: 5 }}><div style={{ width: `${(latest?.score || 0) * 10}%`, height: "100%", background: c, borderRadius: 3 }} /></div>
+                        {latest?.notes && <div style={{ fontSize: 11, color: T.textMut, marginTop: 4 }}>{latest.notes}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+            <Card style={{ marginTop: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <SectionHead>Verstärkungs-Schleifen ({iRL.length})</SectionHead>
+              </div>
+              {iRL.length === 0 ? <Empty icon="🔁" title="Keine Verstärkungs-Schleifen" sub="Definiere positive Feedback-Kreisläufe" action={<Btn v="primary" onClick={() => setShowRL(true)}>Schleife anlegen</Btn>} /> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {iRL.map(r => (
                     <div key={r.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, display: "flex", justifyContent: "space-between" }}>
@@ -2304,8 +2434,8 @@
                     </div>
                   ))}
                 </div>
-              </Card>
-            )}
+              )}
+            </Card>
             <Modal open={showPC} onClose={() => setShowPC(false)} title="Pulse Check erfassen">
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <Input label="Gruppe / Zielgruppe" value={fPC.group} onChange={v => setFPC(p => ({ ...p, group: v }))} options={iTG.map(t => t.name)} />
@@ -2325,6 +2455,25 @@
               </div>
               <Btn v="primary" onClick={saveMul} style={{ marginTop: 16 }}>Speichern</Btn>
             </Modal>
+            <Modal open={showRL} onClose={() => setShowRL(false)} title="Verstärkungs-Schleife anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Bezeichnung" value={fRL.title} onChange={v => setFRL(p => ({ ...p, title: v }))} />
+                <Input label="Auslöser (Trigger)" value={fRL.trigger} onChange={v => setFRL(p => ({ ...p, trigger: v }))} textarea />
+                <Input label="Gewünschte Wirkung" value={fRL.effect} onChange={v => setFRL(p => ({ ...p, effect: v }))} textarea />
+                <Input label="Notizen" value={fRL.notes} onChange={v => setFRL(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveRL} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showTM} onClose={() => setShowTM(false)} title="Team-Reife bewerten">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Team / Gruppe" value={fTM.team} onChange={v => setFTM(p => ({ ...p, team: v }))} />
+                <Input label="Dimension" value={fTM.dimension} onChange={v => setFTM(p => ({ ...p, dimension: v }))} options={TM_DIMS} />
+                <Input label="Score (0–10)" value={String(fTM.score)} onChange={v => setFTM(p => ({ ...p, score: clamp(v) }))} type="number" />
+                <Input label="Datum" value={fTM.date} onChange={v => setFTM(p => ({ ...p, date: v }))} type="date" />
+                <Input label="Notizen / Begründung" value={fTM.notes} onChange={v => setFTM(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveTM} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
           </div>
         );
       };
@@ -2334,8 +2483,10 @@
         if (!ini) return <Empty icon="💬" title="Keine Initiative gewählt" sub="" />;
         const [showFC, setShowFC] = useState(false);
         const [showNar, setShowNar] = useState(false);
+        const [showPer, setShowPer] = useState(false);
         const [fFC, setFFC] = useState({ name: "", type: "survey", frequency: "monthly", owner: "", notes: "" });
         const [fNar, setFNar] = useState({ title: "", audience: "", message: "", tone: "informativ", status: "draft" });
+        const [fPer, setFPer] = useState({ name: "", role: "", org_unit: "", pain_points: "", goals: "", fears: "", motivations: "", quote: "" });
         const saveFC = () => {
           if (!fFC.name) return;
           up(d => { if (!d.feedbackChannels) d.feedbackChannels = []; d.feedbackChannels.push({ id: uid("FC-"), initiative_id: sel, ...fFC }); });
@@ -2346,6 +2497,11 @@
           up(d => { if (!d.narratives) d.narratives = []; d.narratives.push({ id: uid("NAR-"), initiative_id: sel, ...fNar }); });
           setFNar({ title: "", audience: "", message: "", tone: "informativ", status: "draft" }); setShowNar(false);
         };
+        const savePer = () => {
+          if (!fPer.name) return;
+          up(d => { if (!d.personas) d.personas = []; d.personas.push({ id: uid("PER-"), initiative_id: sel, ...fPer }); });
+          setFPer({ name: "", role: "", org_unit: "", pain_points: "", goals: "", fears: "", motivations: "", quote: "" }); setShowPer(false);
+        };
         const narStatusColor = s => s === "approved" ? T.success : s === "review" ? T.warn : T.textMut;
         return (
           <div>
@@ -2353,6 +2509,7 @@
               <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Dialog & Feedback</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – Feedback-Kanäle, Personas & Narrative</p></div>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn v="default" onClick={() => setShowNar(true)}>＋ Narrativ</Btn>
+                <Btn v="default" onClick={() => setShowPer(true)}>＋ Persona</Btn>
                 <Btn v="primary" onClick={() => setShowFC(true)}>＋ Feedback-Kanal</Btn>
               </div>
             </div>
@@ -2378,19 +2535,26 @@
                 )}
               </Card>
               <Card>
-                <SectionHead>Personas ({iPER.length})</SectionHead>
-                {iPER.length === 0 ? <Empty icon="🎭" title="Keine Personas" sub="Beschreibe typische Betroffene" /> : (
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <SectionHead>Personas ({iPER.length})</SectionHead>
+                </div>
+                {iPER.length === 0 ? <Empty icon="🎭" title="Keine Personas" sub="Beschreibe typische Betroffene" action={<Btn v="primary" onClick={() => setShowPer(true)}>Persona anlegen</Btn>} /> : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {iPER.map(p => (
-                      <div key={p.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <div key={p.id} style={{ padding: "12px 14px", background: T.bg, borderRadius: T.rs, borderLeft: `3px solid ${T.pink}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
-                            {p.role && <div style={{ fontSize: 11, color: T.textMut }}>{p.role}</div>}
-                            {p.pain_points && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>Schmerzpunkte: {p.pain_points}</div>}
-                            {p.goals && <div style={{ fontSize: 12, color: T.textSec }}>Ziele: {p.goals}</div>}
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>🎭 {p.name}</div>
+                            {p.role && <div style={{ fontSize: 11, color: T.textMut }}>{p.role}{p.org_unit ? ` · ${p.org_unit}` : ""}</div>}
                           </div>
                           <Btn v="ghost" small onClick={() => up(d => { d.personas = (d.personas || []).filter(x => x.id !== p.id); })}>✕</Btn>
+                        </div>
+                        {p.quote && <div style={{ fontSize: 12, fontStyle: "italic", color: T.textSec, margin: "4px 0 8px", padding: "4px 8px", borderLeft: `2px solid ${T.pink}` }}>"{p.quote}"</div>}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 12 }}>
+                          {p.pain_points && <div><span style={{ fontSize: 10, fontWeight: 700, color: T.danger }}>SCHMERZPUNKTE</span><div style={{ color: T.textSec, marginTop: 2 }}>{p.pain_points}</div></div>}
+                          {p.goals && <div><span style={{ fontSize: 10, fontWeight: 700, color: T.success }}>ZIELE</span><div style={{ color: T.textSec, marginTop: 2 }}>{p.goals}</div></div>}
+                          {p.fears && <div><span style={{ fontSize: 10, fontWeight: 700, color: T.warn }}>ÄNGSTE</span><div style={{ color: T.textSec, marginTop: 2 }}>{p.fears}</div></div>}
+                          {p.motivations && <div><span style={{ fontSize: 10, fontWeight: 700, color: T.accent }}>MOTIVATIONEN</span><div style={{ color: T.textSec, marginTop: 2 }}>{p.motivations}</div></div>}
                         </div>
                       </div>
                     ))}
@@ -2440,6 +2604,19 @@
                 <Input label="Tonalität" value={fNar.tone} onChange={v => setFNar(p => ({ ...p, tone: v }))} options={["informativ","motivierend","empathisch","direktiv"]} />
               </div>
               <Btn v="primary" onClick={saveNar} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showPer} onClose={() => setShowPer(false)} title="Persona anlegen" wide>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Input label="Name der Persona" value={fPer.name} onChange={v => setFPer(p => ({ ...p, name: v }))} style={{ gridColumn: "1/-1" }} />
+                <Input label="Rolle / Funktion" value={fPer.role} onChange={v => setFPer(p => ({ ...p, role: v }))} />
+                <Input label="Organisationseinheit" value={fPer.org_unit} onChange={v => setFPer(p => ({ ...p, org_unit: v }))} />
+                <Input label="Schmerzpunkte" value={fPer.pain_points} onChange={v => setFPer(p => ({ ...p, pain_points: v }))} textarea />
+                <Input label="Ziele" value={fPer.goals} onChange={v => setFPer(p => ({ ...p, goals: v }))} textarea />
+                <Input label="Ängste / Bedenken" value={fPer.fears} onChange={v => setFPer(p => ({ ...p, fears: v }))} textarea />
+                <Input label="Motivationen" value={fPer.motivations} onChange={v => setFPer(p => ({ ...p, motivations: v }))} textarea />
+                <Input label="Typisches Zitat" value={fPer.quote} onChange={v => setFPer(p => ({ ...p, quote: v }))} textarea style={{ gridColumn: "1/-1" }} />
+              </div>
+              <Btn v="primary" onClick={savePer} style={{ marginTop: 16 }}>Speichern</Btn>
             </Modal>
           </div>
         );
