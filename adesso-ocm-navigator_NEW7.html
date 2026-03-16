@@ -1890,8 +1890,794 @@
         );
       };
 
+      // ─── GOVERNANCE ───────────────────────────────────────────────────
+      const GovernanceView = () => {
+        const [showDep, setShowDep] = useState(false);
+        const [showGate, setShowGate] = useState(false);
+        const [fDep, setFDep] = useState({ from_initiative_id: "", to_initiative_id: "", type: "depends_on", notes: "" });
+        const [fGate, setFGate] = useState({ initiative_id: sel || "", name: "", date: "", status: "planned", criteria: "", notes: "" });
+        const deps = data.dependencies || [];
+        const gates = (data.stageGates || []).filter(g => !sel || g.initiative_id === sel);
+        const saveDep = () => {
+          if (!fDep.from_initiative_id || !fDep.to_initiative_id) return;
+          up(d => { if (!d.dependencies) d.dependencies = []; d.dependencies.push({ id: uid("DEP-"), ...fDep }); });
+          setFDep({ from_initiative_id: "", to_initiative_id: "", type: "depends_on", notes: "" }); setShowDep(false);
+        };
+        const saveGate = () => {
+          if (!fGate.name) return;
+          up(d => { if (!d.stageGates) d.stageGates = []; d.stageGates.push({ id: uid("SG-"), ...fGate, initiative_id: fGate.initiative_id || sel || "" }); });
+          setFGate({ initiative_id: sel || "", name: "", date: "", status: "planned", criteria: "", notes: "" }); setShowGate(false);
+        };
+        const gateStatusColor = s => s === "passed" ? T.success : s === "failed" ? T.danger : s === "in_review" ? T.warn : T.textMut;
+        const iniName = id => data.initiatives.find(i => i.id === id)?.name || id;
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Governance</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>Abhängigkeiten & Stage Gates zwischen Initiativen</p></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowDep(true)}>＋ Abhängigkeit</Btn>
+                <Btn v="primary" onClick={() => setShowGate(true)}>＋ Stage Gate</Btn>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+              <Card>
+                <SectionHead>Initiativen-Abhängigkeiten ({deps.length})</SectionHead>
+                {deps.length === 0 ? <Empty icon="🔗" title="Keine Abhängigkeiten" sub="Verbinde Initiativen miteinander" /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {deps.map(d => (
+                      <div key={d.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ fontSize: 13 }}>
+                          <span style={{ fontWeight: 600 }}>{iniName(d.from_initiative_id)}</span>
+                          <span style={{ margin: "0 8px", color: T.textMut }}>→ {d.type === "depends_on" ? "abhängig von" : d.type === "blocks" ? "blockiert" : "verknüpft mit"}</span>
+                          <span style={{ fontWeight: 600 }}>{iniName(d.to_initiative_id)}</span>
+                        </div>
+                        <Btn v="ghost" small onClick={() => up(d2 => { d2.dependencies = (d2.dependencies || []).filter(x => x.id !== d.id); })}>✕</Btn>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+              <Card>
+                <SectionHead>Stage Gates ({gates.length})</SectionHead>
+                {gates.length === 0 ? <Empty icon="🏁" title="Keine Stage Gates" sub="Definiere Meilenstein-Prüfpunkte" /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {gates.map(g => (
+                      <div key={g.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, borderLeft: `3px solid ${gateStatusColor(g.status)}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700 }}>{g.name}</span>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            <Badge color={gateStatusColor(g.status)}>{g.status}</Badge>
+                            <Btn v="ghost" small onClick={() => up(d => { d.stageGates = (d.stageGates || []).filter(x => x.id !== g.id); })}>✕</Btn>
+                          </div>
+                        </div>
+                        {g.date && <div style={{ fontSize: 11, color: T.textMut }}>📅 {fmtDate(g.date)}</div>}
+                        {g.criteria && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>{g.criteria}</div>}
+                        <div style={{ marginTop: 6 }}>
+                          {["planned","in_review","passed","failed"].map(s => (
+                            <Btn key={s} small v={g.status === s ? "primary" : "default"} onClick={() => up(d => { const sg = (d.stageGates || []).find(x => x.id === g.id); if (sg) sg.status = s; })} style={{ marginRight: 4 }}>{s}</Btn>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+            <Modal open={showDep} onClose={() => setShowDep(false)} title="Abhängigkeit hinzufügen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Von Initiative" value={fDep.from_initiative_id} onChange={v => setFDep(p => ({ ...p, from_initiative_id: v }))} options={data.initiatives.map(i => ({ value: i.id, label: i.name }))} />
+                <Input label="Typ" value={fDep.type} onChange={v => setFDep(p => ({ ...p, type: v }))} options={["depends_on","blocks","related_to"]} />
+                <Input label="Zu Initiative" value={fDep.to_initiative_id} onChange={v => setFDep(p => ({ ...p, to_initiative_id: v }))} options={data.initiatives.map(i => ({ value: i.id, label: i.name }))} />
+                <Input label="Notizen" value={fDep.notes} onChange={v => setFDep(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveDep} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showGate} onClose={() => setShowGate(false)} title="Stage Gate hinzufügen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Initiative" value={fGate.initiative_id} onChange={v => setFGate(p => ({ ...p, initiative_id: v }))} options={data.initiatives.map(i => ({ value: i.id, label: i.name }))} />
+                <Input label="Name" value={fGate.name} onChange={v => setFGate(p => ({ ...p, name: v }))} />
+                <Input label="Datum" value={fGate.date} onChange={v => setFGate(p => ({ ...p, date: v }))} type="date" />
+                <Input label="Kriterien" value={fGate.criteria} onChange={v => setFGate(p => ({ ...p, criteria: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveGate} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── OUTCOMES (Wirkungsmessung) ───────────────────────────────────
+      const OutcomesView = () => {
+        if (!ini) return <Empty icon="📈" title="Keine Initiative gewählt" sub="Wähle eine Initiative im Portfolio" />;
+        const [showKPI, setShowKPI] = useState(false);
+        const [showHyp, setShowHyp] = useState(false);
+        const [fKPI, setFKPI] = useState({ title: "", target: "", baseline: "", unit: "", current: "", trend: "stable" });
+        const [fHyp, setFHyp] = useState({ statement: "", assumption: "", metric: "", result: "", status: "open" });
+        const saveKPI = () => {
+          if (!fKPI.title) return;
+          up(d => { if (!d.outcomeKPIs) d.outcomeKPIs = []; d.outcomeKPIs.push({ id: uid("KPI-"), initiative_id: sel, ...fKPI }); });
+          setFKPI({ title: "", target: "", baseline: "", unit: "", current: "", trend: "stable" }); setShowKPI(false);
+        };
+        const saveHyp = () => {
+          if (!fHyp.statement) return;
+          up(d => { if (!d.hypotheses) d.hypotheses = []; d.hypotheses.push({ id: uid("HYP-"), initiative_id: sel, ...fHyp }); });
+          setFHyp({ statement: "", assumption: "", metric: "", result: "", status: "open" }); setShowHyp(false);
+        };
+        const trendIcon = t => t === "up" ? "📈" : t === "down" ? "📉" : "➡️";
+        const hypStatusColor = s => s === "confirmed" ? T.success : s === "rejected" ? T.danger : T.textMut;
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Wirkungsmessung</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – KPIs, Hypothesen & Nutzen</p></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowHyp(true)}>＋ Hypothese</Btn>
+                <Btn v="primary" onClick={() => setShowKPI(true)}>＋ KPI</Btn>
+              </div>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <SectionHead>Outcome KPIs ({iKPI.length})</SectionHead>
+              {iKPI.length === 0 ? <Empty icon="📊" title="Keine KPIs" sub="Definiere messbare Erfolgsindikatoren" action={<Btn v="primary" onClick={() => setShowKPI(true)}>Ersten KPI anlegen</Btn>} /> : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 12 }}>
+                  {iKPI.map(k => {
+                    const prog = k.baseline != null && k.target && k.baseline !== k.target ? Math.round(((Number(k.current || k.baseline) - Number(k.baseline)) / (Number(k.target) - Number(k.baseline))) * 100) : null;
+                    return (
+                      <Card key={k.id} style={{ borderTop: `3px solid ${T.accent}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ fontWeight: 700, fontSize: 14 }}>{k.title}</span>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <span style={{ fontSize: 18 }}>{trendIcon(k.trend)}</span>
+                            <Btn v="ghost" small onClick={() => up(d => { d.outcomeKPIs = (d.outcomeKPIs || []).filter(x => x.id !== k.id); })}>✕</Btn>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, fontSize: 12, marginBottom: 8 }}>
+                          <span style={{ color: T.textMut }}>Basis: <strong>{k.baseline}{k.unit}</strong></span>
+                          <span style={{ color: T.accent }}>Ziel: <strong>{k.target}{k.unit}</strong></span>
+                          <span style={{ color: T.success }}>Aktuell: <strong>{k.current || k.baseline}{k.unit}</strong></span>
+                        </div>
+                        {prog !== null && (
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}><span style={{ color: T.textMut }}>Fortschritt</span><span style={{ fontWeight: 600 }}>{prog}%</span></div>
+                            <div style={{ background: T.bg, borderRadius: 4, height: 6 }}><div style={{ width: `${Math.min(Math.max(prog, 0), 100)}%`, height: "100%", background: `linear-gradient(90deg,${T.accent},${T.success})`, borderRadius: 4 }} /></div>
+                          </div>
+                        )}
+                        <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
+                          {["stable","up","down"].map(t => <Btn key={t} small v={k.trend === t ? "primary" : "default"} onClick={() => up(d => { const ki = (d.outcomeKPIs || []).find(x => x.id === k.id); if (ki) ki.trend = t; })}>{trendIcon(t)}</Btn>)}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div>
+              <SectionHead>Hypothesen ({iHYP.length})</SectionHead>
+              {iHYP.length === 0 ? <Empty icon="🔬" title="Keine Hypothesen" sub="Formuliere Annahmen und prüfe sie" /> : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {iHYP.map(h => (
+                    <Card key={h.id} style={{ borderLeft: `3px solid ${hypStatusColor(h.status)}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{h.statement}</div>
+                          {h.assumption && <div style={{ fontSize: 12, color: T.textSec, marginBottom: 4 }}>Annahme: {h.assumption}</div>}
+                          {h.metric && <div style={{ fontSize: 12, color: T.textMut }}>Metrik: {h.metric}</div>}
+                          {h.result && <div style={{ fontSize: 12, color: T.text, marginTop: 4, padding: "4px 8px", background: T.bg, borderRadius: T.rs }}>Ergebnis: {h.result}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 12 }}>
+                          {["open","confirmed","rejected"].map(s => <Btn key={s} small v={h.status === s ? "primary" : "default"} onClick={() => up(d => { const hi = (d.hypotheses || []).find(x => x.id === h.id); if (hi) hi.status = s; })}>{s === "open" ? "Offen" : s === "confirmed" ? "Bestätigt" : "Widerlegt"}</Btn>)}
+                          <Btn v="ghost" small onClick={() => up(d => { d.hypotheses = (d.hypotheses || []).filter(x => x.id !== h.id); })}>✕</Btn>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Modal open={showKPI} onClose={() => setShowKPI(false)} title="Neuer KPI">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Bezeichnung" value={fKPI.title} onChange={v => setFKPI(p => ({ ...p, title: v }))} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  <Input label="Basiswert" value={fKPI.baseline} onChange={v => setFKPI(p => ({ ...p, baseline: v }))} />
+                  <Input label="Zielwert" value={fKPI.target} onChange={v => setFKPI(p => ({ ...p, target: v }))} />
+                  <Input label="Aktuell" value={fKPI.current} onChange={v => setFKPI(p => ({ ...p, current: v }))} />
+                  <Input label="Einheit" value={fKPI.unit} onChange={v => setFKPI(p => ({ ...p, unit: v }))} />
+                </div>
+                <Input label="Trend" value={fKPI.trend} onChange={v => setFKPI(p => ({ ...p, trend: v }))} options={["stable","up","down"]} />
+              </div>
+              <Btn v="primary" onClick={saveKPI} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showHyp} onClose={() => setShowHyp(false)} title="Neue Hypothese">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="These (Wenn … dann …)" value={fHyp.statement} onChange={v => setFHyp(p => ({ ...p, statement: v }))} textarea />
+                <Input label="Kernannahme" value={fHyp.assumption} onChange={v => setFHyp(p => ({ ...p, assumption: v }))} textarea />
+                <Input label="Metrik zur Prüfung" value={fHyp.metric} onChange={v => setFHyp(p => ({ ...p, metric: v }))} />
+              </div>
+              <Btn v="primary" onClick={saveHyp} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── LEADERSHIP (Führung) ─────────────────────────────────────────
+      const LeadershipView = () => {
+        if (!ini) return <Empty icon="👔" title="Keine Initiative gewählt" sub="" />;
+        const [showTask, setShowTask] = useState(false);
+        const [showDL, setShowDL] = useState(false);
+        const [fTask, setFTask] = useState({ title: "", owner: "", due_date: "", status: "open", description: "" });
+        const [fDL, setFDL] = useState({ date: today(), title: "", decision: "", rationale: "", owner: "" });
+        const saveTask = () => {
+          if (!fTask.title) return;
+          up(d => { if (!d.leadershipTasks) d.leadershipTasks = []; d.leadershipTasks.push({ id: uid("LT-"), initiative_id: sel, ...fTask }); });
+          setFTask({ title: "", owner: "", due_date: "", status: "open", description: "" }); setShowTask(false);
+        };
+        const saveDL = () => {
+          if (!fDL.title) return;
+          up(d => { if (!d.decisionLog) d.decisionLog = []; d.decisionLog.push({ id: uid("DL-"), initiative_id: sel, ...fDL }); });
+          setFDL({ date: today(), title: "", decision: "", rationale: "", owner: "" }); setShowDL(false);
+        };
+        const taskStatusColor = s => s === "done" ? T.success : s === "in_progress" ? T.accent : T.textMut;
+        const sponsorProgress = (() => {
+          if (iSPT.length === 0) return null;
+          const scores = iSPT.map(s => s.score || 0);
+          return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        })();
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Führung & Sponsoring</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – Leadership-Aufgaben & Entscheidungslog</p></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowDL(true)}>＋ Entscheidung</Btn>
+                <Btn v="primary" onClick={() => setShowTask(true)}>＋ Aufgabe</Btn>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+              <Card>
+                <SectionHead>Leadership-Aufgaben ({iLT.length})</SectionHead>
+                {iLT.length === 0 ? <Empty icon="📋" title="Keine Aufgaben" sub="Weise Führungsaufgaben zu" /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {iLT.map(t => (
+                      <div key={t.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, borderLeft: `3px solid ${taskStatusColor(t.status)}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{t.title}</span>
+                          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                            {["open","in_progress","done"].map(s => <Btn key={s} small v={t.status === s ? "primary" : "default"} onClick={() => up(d => { const lt = (d.leadershipTasks || []).find(x => x.id === t.id); if (lt) lt.status = s; })}>{s === "open" ? "Offen" : s === "in_progress" ? "Aktiv" : "Fertig"}</Btn>)}
+                            <Btn v="ghost" small onClick={() => up(d => { d.leadershipTasks = (d.leadershipTasks || []).filter(x => x.id !== t.id); })}>✕</Btn>
+                          </div>
+                        </div>
+                        {t.owner && <div style={{ fontSize: 11, color: T.textMut }}>👤 {t.owner}</div>}
+                        {t.due_date && <div style={{ fontSize: 11, color: T.textMut }}>📅 {fmtDate(t.due_date)}</div>}
+                        {t.description && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>{t.description}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+              <Card>
+                <SectionHead>Sponsor-Aktivierung ({iSPT.length} Einträge)</SectionHead>
+                {sponsorProgress !== null && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}><span style={{ color: T.textMut }}>Ø Aktivierungs-Score</span><span style={{ fontWeight: 700, color: T.adessoBlau }}>{sponsorProgress}/10</span></div>
+                    <div style={{ background: T.bg, borderRadius: 4, height: 8 }}><div style={{ width: `${sponsorProgress * 10}%`, height: "100%", background: `linear-gradient(90deg,${T.accent},${T.success})`, borderRadius: 4 }} /></div>
+                  </div>
+                )}
+                {iSPT.length === 0 ? <p style={{ fontSize: 13, color: T.textMut }}>Noch keine Sponsor-Tracking-Einträge vorhanden. Nutze die Initiative → Stakeholder-Ansicht um Sponsoren zu pflegen.</p> : (
+                  iSPT.map(s => {
+                    const sh = iSH.find(x => x.id === s.stakeholder_id);
+                    return (
+                      <div key={s.id} style={{ padding: "8px 10px", background: T.bg, borderRadius: T.rs, marginBottom: 6 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                          <span style={{ fontWeight: 600 }}>{sh?.name || s.stakeholder_id}</span>
+                          <Badge color={s.score >= 7 ? T.success : s.score >= 4 ? T.warn : T.danger}>{s.score}/10</Badge>
+                        </div>
+                        {s.notes && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>{s.notes}</div>}
+                      </div>
+                    );
+                  })
+                )}
+              </Card>
+            </div>
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <SectionHead>Entscheidungslog ({iDL.length})</SectionHead>
+              </div>
+              {iDL.length === 0 ? <Empty icon="📝" title="Keine Entscheidungen" sub="Dokumentiere wichtige Entscheidungen" /> : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead><tr>{["Datum","Thema","Entscheidung","Verantwortl.",""].map(h => <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontSize: 11, fontWeight: 700, color: T.textMut, background: T.bg, borderBottom: `1px solid ${T.border}` }}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {iDL.map(d => (
+                      <tr key={d.id}>
+                        <td style={{ padding: "8px 10px", fontSize: 12, borderBottom: `1px solid ${T.borderLight}` }}>{fmtDate(d.date)}</td>
+                        <td style={{ padding: "8px 10px", fontSize: 12, fontWeight: 600, borderBottom: `1px solid ${T.borderLight}` }}>{d.title}</td>
+                        <td style={{ padding: "8px 10px", fontSize: 12, borderBottom: `1px solid ${T.borderLight}` }}>{d.decision}</td>
+                        <td style={{ padding: "8px 10px", fontSize: 12, color: T.textMut, borderBottom: `1px solid ${T.borderLight}` }}>{d.owner}</td>
+                        <td style={{ padding: "8px 10px", borderBottom: `1px solid ${T.borderLight}` }}><Btn v="ghost" small onClick={() => up(d2 => { d2.decisionLog = (d2.decisionLog || []).filter(x => x.id !== d.id); })}>✕</Btn></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </Card>
+            <Modal open={showTask} onClose={() => setShowTask(false)} title="Leadership-Aufgabe">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Aufgabe" value={fTask.title} onChange={v => setFTask(p => ({ ...p, title: v }))} />
+                <Input label="Verantwortlich" value={fTask.owner} onChange={v => setFTask(p => ({ ...p, owner: v }))} />
+                <Input label="Fällig am" value={fTask.due_date} onChange={v => setFTask(p => ({ ...p, due_date: v }))} type="date" />
+                <Input label="Beschreibung" value={fTask.description} onChange={v => setFTask(p => ({ ...p, description: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveTask} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showDL} onClose={() => setShowDL(false)} title="Entscheidung dokumentieren">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Datum" value={fDL.date} onChange={v => setFDL(p => ({ ...p, date: v }))} type="date" />
+                <Input label="Thema" value={fDL.title} onChange={v => setFDL(p => ({ ...p, title: v }))} />
+                <Input label="Entscheidung" value={fDL.decision} onChange={v => setFDL(p => ({ ...p, decision: v }))} textarea />
+                <Input label="Begründung" value={fDL.rationale} onChange={v => setFDL(p => ({ ...p, rationale: v }))} textarea />
+                <Input label="Entscheidungsträger" value={fDL.owner} onChange={v => setFDL(p => ({ ...p, owner: v }))} />
+              </div>
+              <Btn v="primary" onClick={saveDL} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── TEAMDEV (Teamentwicklung) ────────────────────────────────────
+      const TeamdevView = () => {
+        if (!ini) return <Empty icon="🧩" title="Keine Initiative gewählt" sub="" />;
+        const [showPC, setShowPC] = useState(false);
+        const [showMul, setShowMul] = useState(false);
+        const [fPC, setFPC] = useState({ date: today(), group: "", score: 5, notes: "" });
+        const [fMul, setFMul] = useState({ name: "", role: "", team: "", influence: 5, notes: "" });
+        const savePC = () => {
+          if (!fPC.group) return;
+          up(d => { if (!d.pulseChecks) d.pulseChecks = []; d.pulseChecks.push({ id: uid("PC-"), initiative_id: sel, ...fPC, score: Number(fPC.score) }); });
+          setFPC({ date: today(), group: "", score: 5, notes: "" }); setShowPC(false);
+        };
+        const saveMul = () => {
+          if (!fMul.name) return;
+          up(d => { if (!d.multipliers) d.multipliers = []; d.multipliers.push({ id: uid("MUL-"), initiative_id: sel, ...fMul, influence: Number(fMul.influence) }); });
+          setFMul({ name: "", role: "", team: "", influence: 5, notes: "" }); setShowMul(false);
+        };
+        const latestPC = iTG.map(tg => {
+          const checks = iPC.filter(p => p.group === tg.name).sort((a, b) => b.date?.localeCompare(a.date));
+          return { tg, latest: checks[0] || null };
+        });
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Teamentwicklung</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – Pulse Checks & Multiplikatoren</p></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowMul(true)}>＋ Multiplikator</Btn>
+                <Btn v="primary" onClick={() => setShowPC(true)}>＋ Pulse Check</Btn>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+              <Card>
+                <SectionHead>Pulse Checks – aktueller Stand</SectionHead>
+                {latestPC.length === 0 ? <Empty icon="💓" title="Keine Zielgruppen" sub="Lege zuerst Zielgruppen an" /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {latestPC.map(({ tg, latest }) => (
+                      <div key={tg.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>{tg.name}</span>
+                          {latest ? <Badge color={latest.score >= 7 ? T.success : latest.score >= 4 ? T.warn : T.danger}>{latest.score}/10</Badge> : <Badge color={T.textMut}>Kein Check</Badge>}
+                        </div>
+                        {latest && <>
+                          <div style={{ background: T.surface, borderRadius: 4, height: 6, marginBottom: 4 }}><div style={{ width: `${latest.score * 10}%`, height: "100%", background: latest.score >= 7 ? T.success : latest.score >= 4 ? T.warn : T.danger, borderRadius: 4 }} /></div>
+                          <div style={{ fontSize: 11, color: T.textMut }}>{fmtDate(latest.date)}{latest.notes && ` – ${latest.notes.slice(0, 60)}`}</div>
+                        </>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+              <Card>
+                <SectionHead>Multiplikatoren ({iMUL.length})</SectionHead>
+                {iMUL.length === 0 ? <Empty icon="📡" title="Keine Multiplikatoren" sub="Identifiziere Change Agents" /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {iMUL.map(m => (
+                      <div key={m.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{m.name}</div>
+                          {m.role && <div style={{ fontSize: 11, color: T.textMut }}>{m.role}{m.team ? ` · ${m.team}` : ""}</div>}
+                          {m.notes && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>{m.notes}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          <Badge color={T.purple}>Einfluss {m.influence}/10</Badge>
+                          <Btn v="ghost" small onClick={() => up(d => { d.multipliers = (d.multipliers || []).filter(x => x.id !== m.id); })}>✕</Btn>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+            {iRL.length > 0 && (
+              <Card>
+                <SectionHead>Verstärkungs-Schleifen ({iRL.length})</SectionHead>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {iRL.map(r => (
+                    <div key={r.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, display: "flex", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{r.title || r.description}</div>
+                        {r.trigger && <div style={{ fontSize: 12, color: T.textSec }}>Auslöser: {r.trigger}</div>}
+                        {r.effect && <div style={{ fontSize: 12, color: T.textSec }}>Wirkung: {r.effect}</div>}
+                      </div>
+                      <Btn v="ghost" small onClick={() => up(d => { d.reinforcementLoops = (d.reinforcementLoops || []).filter(x => x.id !== r.id); })}>✕</Btn>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+            <Modal open={showPC} onClose={() => setShowPC(false)} title="Pulse Check erfassen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Gruppe / Zielgruppe" value={fPC.group} onChange={v => setFPC(p => ({ ...p, group: v }))} options={iTG.map(t => t.name)} />
+                <Input label="Datum" value={fPC.date} onChange={v => setFPC(p => ({ ...p, date: v }))} type="date" />
+                <Input label="Stimmungs-Score (0–10)" value={String(fPC.score)} onChange={v => setFPC(p => ({ ...p, score: clamp(v) }))} type="number" />
+                <Input label="Notizen" value={fPC.notes} onChange={v => setFPC(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={savePC} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showMul} onClose={() => setShowMul(false)} title="Multiplikator hinzufügen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Name" value={fMul.name} onChange={v => setFMul(p => ({ ...p, name: v }))} />
+                <Input label="Rolle" value={fMul.role} onChange={v => setFMul(p => ({ ...p, role: v }))} />
+                <Input label="Team / Bereich" value={fMul.team} onChange={v => setFMul(p => ({ ...p, team: v }))} />
+                <Input label="Einfluss (0–10)" value={String(fMul.influence)} onChange={v => setFMul(p => ({ ...p, influence: clamp(v) }))} type="number" />
+                <Input label="Notizen" value={fMul.notes} onChange={v => setFMul(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveMul} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── DIALOGUE (Dialog & Feedback) ────────────────────────────────
+      const DialogueView = () => {
+        if (!ini) return <Empty icon="💬" title="Keine Initiative gewählt" sub="" />;
+        const [showFC, setShowFC] = useState(false);
+        const [showNar, setShowNar] = useState(false);
+        const [fFC, setFFC] = useState({ name: "", type: "survey", frequency: "monthly", owner: "", notes: "" });
+        const [fNar, setFNar] = useState({ title: "", audience: "", message: "", tone: "informativ", status: "draft" });
+        const saveFC = () => {
+          if (!fFC.name) return;
+          up(d => { if (!d.feedbackChannels) d.feedbackChannels = []; d.feedbackChannels.push({ id: uid("FC-"), initiative_id: sel, ...fFC }); });
+          setFFC({ name: "", type: "survey", frequency: "monthly", owner: "", notes: "" }); setShowFC(false);
+        };
+        const saveNar = () => {
+          if (!fNar.title) return;
+          up(d => { if (!d.narratives) d.narratives = []; d.narratives.push({ id: uid("NAR-"), initiative_id: sel, ...fNar }); });
+          setFNar({ title: "", audience: "", message: "", tone: "informativ", status: "draft" }); setShowNar(false);
+        };
+        const narStatusColor = s => s === "approved" ? T.success : s === "review" ? T.warn : T.textMut;
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Dialog & Feedback</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – Feedback-Kanäle, Personas & Narrative</p></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowNar(true)}>＋ Narrativ</Btn>
+                <Btn v="primary" onClick={() => setShowFC(true)}>＋ Feedback-Kanal</Btn>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+              <Card>
+                <SectionHead>Feedback-Kanäle ({iFC.length})</SectionHead>
+                {iFC.length === 0 ? <Empty icon="📡" title="Keine Kanäle" sub="Definiere wie Feedback gesammelt wird" action={<Btn v="primary" onClick={() => setShowFC(true)}>Kanal anlegen</Btn>} /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {iFC.map(fc => (
+                      <div key={fc.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{fc.name}</div>
+                          <div style={{ fontSize: 11, color: T.textMut, marginTop: 2 }}>
+                            <Badge color={T.cyan} style={{ marginRight: 6 }}>{fc.type}</Badge>
+                            {fc.frequency && <span>{fc.frequency}</span>}
+                          </div>
+                          {fc.owner && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>👤 {fc.owner}</div>}
+                        </div>
+                        <Btn v="ghost" small onClick={() => up(d => { d.feedbackChannels = (d.feedbackChannels || []).filter(x => x.id !== fc.id); })}>✕</Btn>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+              <Card>
+                <SectionHead>Personas ({iPER.length})</SectionHead>
+                {iPER.length === 0 ? <Empty icon="🎭" title="Keine Personas" sub="Beschreibe typische Betroffene" /> : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {iPER.map(p => (
+                      <div key={p.id} style={{ padding: "10px 12px", background: T.bg, borderRadius: T.rs }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
+                            {p.role && <div style={{ fontSize: 11, color: T.textMut }}>{p.role}</div>}
+                            {p.pain_points && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>Schmerzpunkte: {p.pain_points}</div>}
+                            {p.goals && <div style={{ fontSize: 12, color: T.textSec }}>Ziele: {p.goals}</div>}
+                          </div>
+                          <Btn v="ghost" small onClick={() => up(d => { d.personas = (d.personas || []).filter(x => x.id !== p.id); })}>✕</Btn>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+            <Card>
+              <SectionHead>Narrative & Kernbotschaften ({iNAR.length})</SectionHead>
+              {iNAR.length === 0 ? <Empty icon="📖" title="Keine Narrative" sub="Entwickle die Changestory" action={<Btn v="primary" onClick={() => setShowNar(true)}>Narrativ anlegen</Btn>} /> : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 12 }}>
+                  {iNAR.map(n => (
+                    <Card key={n.id} style={{ borderLeft: `3px solid ${narStatusColor(n.status)}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14 }}>{n.title}</span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <Badge color={narStatusColor(n.status)}>{n.status}</Badge>
+                          <Btn v="ghost" small onClick={() => up(d => { d.narratives = (d.narratives || []).filter(x => x.id !== n.id); })}>✕</Btn>
+                        </div>
+                      </div>
+                      {n.audience && <div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>Zielgruppe: {n.audience}</div>}
+                      {n.message && <div style={{ fontSize: 12, color: T.text, lineHeight: 1.6 }}>{n.message}</div>}
+                      {n.tone && <Badge color={T.adessoGrau} style={{ marginTop: 6 }}>{n.tone}</Badge>}
+                      <div style={{ marginTop: 8, display: "flex", gap: 4 }}>
+                        {["draft","review","approved"].map(s => <Btn key={s} small v={n.status === s ? "primary" : "default"} onClick={() => up(d => { const ni = (d.narratives || []).find(x => x.id === n.id); if (ni) ni.status = s; })}>{s === "draft" ? "Entwurf" : s === "review" ? "Review" : "Freigegeben"}</Btn>)}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Card>
+            <Modal open={showFC} onClose={() => setShowFC(false)} title="Feedback-Kanal anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Bezeichnung" value={fFC.name} onChange={v => setFFC(p => ({ ...p, name: v }))} />
+                <Input label="Typ" value={fFC.type} onChange={v => setFFC(p => ({ ...p, type: v }))} options={["survey","interview","focus_group","open_door","digital_channel","workshop"]} />
+                <Input label="Frequenz" value={fFC.frequency} onChange={v => setFFC(p => ({ ...p, frequency: v }))} options={["einmalig","wöchentlich","monatlich","quartalsweise"]} />
+                <Input label="Verantwortlich" value={fFC.owner} onChange={v => setFFC(p => ({ ...p, owner: v }))} />
+                <Input label="Notizen" value={fFC.notes} onChange={v => setFFC(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveFC} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showNar} onClose={() => setShowNar(false)} title="Narrativ anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Titel / Changestory" value={fNar.title} onChange={v => setFNar(p => ({ ...p, title: v }))} />
+                <Input label="Zielgruppe" value={fNar.audience} onChange={v => setFNar(p => ({ ...p, audience: v }))} />
+                <Input label="Kernbotschaft" value={fNar.message} onChange={v => setFNar(p => ({ ...p, message: v }))} textarea />
+                <Input label="Tonalität" value={fNar.tone} onChange={v => setFNar(p => ({ ...p, tone: v }))} options={["informativ","motivierend","empathisch","direktiv"]} />
+              </div>
+              <Btn v="primary" onClick={saveNar} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── OPMODEL (Operating Model) ────────────────────────────────────
+      const OpmodelView = () => {
+        if (!ini) return <Empty icon="⚙️" title="Keine Initiative gewählt" sub="" />;
+        const [showRaci, setShowRaci] = useState(false);
+        const [showRisk, setShowRisk] = useState(false);
+        const [fRaci, setFRaci] = useState({ activity: "", responsible: "", accountable: "", consulted: "", informed: "" });
+        const [fRisk, setFRisk] = useState({ title: "", probability: 3, impact: 3, mitigation: "", owner: "", status: "open" });
+        const saveRaci = () => {
+          if (!fRaci.activity) return;
+          up(d => { if (!d.raciItems) d.raciItems = []; d.raciItems.push({ id: uid("RACI-"), initiative_id: sel, ...fRaci }); });
+          setFRaci({ activity: "", responsible: "", accountable: "", consulted: "", informed: "" }); setShowRaci(false);
+        };
+        const saveRisk = () => {
+          if (!fRisk.title) return;
+          up(d => { if (!d.changeRisks) d.changeRisks = []; d.changeRisks.push({ id: uid("CR-"), initiative_id: sel, ...fRisk, probability: Number(fRisk.probability), impact: Number(fRisk.impact) }); });
+          setFRisk({ title: "", probability: 3, impact: 3, mitigation: "", owner: "", status: "open" }); setShowRisk(false);
+        };
+        const riskScore = r => (r.probability || 0) * (r.impact || 0);
+        const riskColor = r => { const s = riskScore(r); return s >= 20 ? T.danger : s >= 10 ? T.warn : T.success; };
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Operating Model</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>{ini.name} – RACI & Change-Risiken</p></div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn v="default" onClick={() => setShowRisk(true)}>＋ Risiko</Btn>
+                <Btn v="primary" onClick={() => setShowRaci(true)}>＋ RACI-Eintrag</Btn>
+              </div>
+            </div>
+            <Card style={{ marginBottom: 14 }}>
+              <SectionHead>RACI-Matrix ({iRACI.length} Aktivitäten)</SectionHead>
+              {iRACI.length === 0 ? <Empty icon="📊" title="Keine RACI-Einträge" sub="Kläre Verantwortlichkeiten" action={<Btn v="primary" onClick={() => setShowRaci(true)}>RACI-Eintrag anlegen</Btn>} /> : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        {["Aktivität","R – Responsible","A – Accountable","C – Consulted","I – Informed",""].map(h => (
+                          <th key={h} style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: T.textMut, background: T.bg, borderBottom: `1px solid ${T.border}`, fontSize: 11 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {iRACI.map(r => (
+                        <tr key={r.id}>
+                          <td style={{ padding: "8px 10px", fontWeight: 600, borderBottom: `1px solid ${T.borderLight}` }}>{r.activity}</td>
+                          <td style={{ padding: "8px 10px", borderBottom: `1px solid ${T.borderLight}`, color: T.danger }}>{r.responsible}</td>
+                          <td style={{ padding: "8px 10px", borderBottom: `1px solid ${T.borderLight}`, color: T.accent }}>{r.accountable}</td>
+                          <td style={{ padding: "8px 10px", borderBottom: `1px solid ${T.borderLight}`, color: T.textSec }}>{r.consulted}</td>
+                          <td style={{ padding: "8px 10px", borderBottom: `1px solid ${T.borderLight}`, color: T.textMut }}>{r.informed}</td>
+                          <td style={{ padding: "8px 10px", borderBottom: `1px solid ${T.borderLight}` }}><Btn v="ghost" small onClick={() => up(d => { d.raciItems = (d.raciItems || []).filter(x => x.id !== r.id); })}>✕</Btn></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+            <Card>
+              <SectionHead>Change-Risiken ({iCR.length})</SectionHead>
+              {iCR.length === 0 ? <Empty icon="⚠️" title="Keine Risiken" sub="Dokumentiere Change-Risiken" action={<Btn v="primary" onClick={() => setShowRisk(true)}>Risiko anlegen</Btn>} /> : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[...iCR].sort((a, b) => riskScore(b) - riskScore(a)).map(r => (
+                    <div key={r.id} style={{ padding: "12px 14px", background: T.bg, borderRadius: T.rs, borderLeft: `4px solid ${riskColor(r)}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{r.title}</div>
+                          <div style={{ display: "flex", gap: 8, fontSize: 12, marginBottom: 6 }}>
+                            <span style={{ color: T.textMut }}>Eintritt: <strong style={{ color: T.text }}>{r.probability}/5</strong></span>
+                            <span style={{ color: T.textMut }}>Wirkung: <strong style={{ color: T.text }}>{r.impact}/5</strong></span>
+                            <Badge color={riskColor(r)}>Score {riskScore(r)}</Badge>
+                          </div>
+                          {r.mitigation && <div style={{ fontSize: 12, color: T.textSec }}>Gegenmaßnahme: {r.mitigation}</div>}
+                          {r.owner && <div style={{ fontSize: 11, color: T.textMut, marginTop: 4 }}>👤 {r.owner}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: 4, marginLeft: 12, alignItems: "center" }}>
+                          {["open","mitigated","closed"].map(s => <Btn key={s} small v={r.status === s ? "primary" : "default"} onClick={() => up(d => { const ri = (d.changeRisks || []).find(x => x.id === r.id); if (ri) ri.status = s; })}>{s === "open" ? "Offen" : s === "mitigated" ? "Gemindert" : "Geschlossen"}</Btn>)}
+                          <Btn v="ghost" small onClick={() => up(d => { d.changeRisks = (d.changeRisks || []).filter(x => x.id !== r.id); })}>✕</Btn>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+            <Modal open={showRaci} onClose={() => setShowRaci(false)} title="RACI-Eintrag anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Aktivität / Aufgabe" value={fRaci.activity} onChange={v => setFRaci(p => ({ ...p, activity: v }))} />
+                <Input label="R – Responsible (Durchführend)" value={fRaci.responsible} onChange={v => setFRaci(p => ({ ...p, responsible: v }))} />
+                <Input label="A – Accountable (Verantwortlich)" value={fRaci.accountable} onChange={v => setFRaci(p => ({ ...p, accountable: v }))} />
+                <Input label="C – Consulted (Beratend)" value={fRaci.consulted} onChange={v => setFRaci(p => ({ ...p, consulted: v }))} />
+                <Input label="I – Informed (Informiert)" value={fRaci.informed} onChange={v => setFRaci(p => ({ ...p, informed: v }))} />
+              </div>
+              <Btn v="primary" onClick={saveRaci} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+            <Modal open={showRisk} onClose={() => setShowRisk(false)} title="Change-Risiko anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Risiko-Titel" value={fRisk.title} onChange={v => setFRisk(p => ({ ...p, title: v }))} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Input label="Eintrittswahrscheinlichkeit (1–5)" value={String(fRisk.probability)} onChange={v => setFRisk(p => ({ ...p, probability: clamp(v, 1, 5) }))} type="number" />
+                  <Input label="Auswirkung (1–5)" value={String(fRisk.impact)} onChange={v => setFRisk(p => ({ ...p, impact: clamp(v, 1, 5) }))} type="number" />
+                </div>
+                <Input label="Gegenmaßnahme" value={fRisk.mitigation} onChange={v => setFRisk(p => ({ ...p, mitigation: v }))} textarea />
+                <Input label="Risikoinhaber" value={fRisk.owner} onChange={v => setFRisk(p => ({ ...p, owner: v }))} />
+              </div>
+              <Btn v="primary" onClick={saveRisk} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── ADOPTION (Adoption & Reife) ──────────────────────────────────
+      const AdoptionView = () => {
+        const [showLearn, setShowLearn] = useState(false);
+        const [fLearn, setFLearn] = useState({ title: "", type: "e-learning", url: "", duration: "", audience: "", notes: "" });
+        const saveLearn = () => {
+          if (!fLearn.title) return;
+          up(d => { if (!d.learningItems) d.learningItems = []; d.learningItems.push({ id: uid("LI-"), ...fLearn }); });
+          setFLearn({ title: "", type: "e-learning", url: "", duration: "", audience: "", notes: "" }); setShowLearn(false);
+        };
+        const mat = data.maturityAssessment || emptyD().maturityAssessment;
+        const learns = data.learningItems || [];
+        const MATURITY_DIMS = [
+          { key: "strategy", label: "Change-Strategie" },
+          { key: "leadership", label: "Führungsaktivierung" },
+          { key: "comms", label: "Kommunikation" },
+          { key: "training", label: "Training & Befähigung" },
+          { key: "measurement", label: "Wirkungsmessung" },
+          { key: "sustainability", label: "Nachhaltigkeit" },
+        ];
+        const getScore = key => {
+          const dim = (mat.dimensions || []).find(d => d.key === key);
+          return dim ? dim.score : 0;
+        };
+        const setScore = (key, val) => {
+          up(d => {
+            if (!d.maturityAssessment) d.maturityAssessment = { date: null, dimensions: [], overall_score: 0 };
+            const dims = d.maturityAssessment.dimensions || [];
+            const existing = dims.find(x => x.key === key);
+            if (existing) existing.score = val;
+            else dims.push({ key, score: val });
+            d.maturityAssessment.dimensions = dims;
+            const scores = MATURITY_DIMS.map(dm => (dims.find(x => x.key === dm.key)?.score || 0));
+            d.maturityAssessment.overall_score = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+            d.maturityAssessment.date = today();
+          });
+        };
+        const overallScore = mat.overall_score || 0;
+        const matLevel = overallScore >= 8 ? "Optimiert" : overallScore >= 6 ? "Definiert" : overallScore >= 3 ? "Entwickelt" : "Initial";
+        const matColor = overallScore >= 8 ? T.success : overallScore >= 6 ? T.accent : overallScore >= 3 ? T.warn : T.danger;
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div><h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Adoption & Reife</h2><p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>OCM-Reifegrad & Lernpfade</p></div>
+              <Btn v="primary" onClick={() => setShowLearn(true)}>＋ Lerninhalt</Btn>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+              <Card style={{ borderTop: `4px solid ${matColor}` }}>
+                <SectionHead>OCM-Reifegrad Gesamt</SectionHead>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 42, fontWeight: 700, color: matColor, lineHeight: 1 }}>{overallScore}</div>
+                    <div style={{ fontSize: 12, color: T.textMut }}>von 10</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: matColor }}>{matLevel}</div>
+                    {mat.date && <div style={{ fontSize: 11, color: T.textMut }}>Zuletzt bewertet: {fmtDate(mat.date)}</div>}
+                  </div>
+                </div>
+                <div style={{ background: T.bg, borderRadius: 6, height: 10, overflow: "hidden" }}>
+                  <div style={{ width: `${overallScore * 10}%`, height: "100%", background: `linear-gradient(90deg,${matColor},${T.accent})`, borderRadius: 6, transition: "width 0.3s" }} />
+                </div>
+              </Card>
+              <Card>
+                <SectionHead>Dimensionen-Bewertung</SectionHead>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {MATURITY_DIMS.map(dm => {
+                    const sc = getScore(dm.key);
+                    const c = sc >= 7 ? T.success : sc >= 4 ? T.warn : T.danger;
+                    return (
+                      <div key={dm.key}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ fontWeight: 600 }}>{dm.label}</span>
+                          <div style={{ display: "flex", gap: 2 }}>
+                            {[0,2,4,6,8,10].map(v => <Btn key={v} small v={sc === v ? "primary" : "default"} onClick={() => setScore(dm.key, v)} style={{ padding: "1px 5px", fontSize: 10 }}>{v}</Btn>)}
+                          </div>
+                        </div>
+                        <div style={{ background: T.bg, borderRadius: 3, height: 5 }}><div style={{ width: `${sc * 10}%`, height: "100%", background: c, borderRadius: 3, transition: "width 0.3s" }} /></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <SectionHead>Lerninhalte & Onboarding ({learns.length})</SectionHead>
+              </div>
+              {learns.length === 0 ? <Empty icon="🎓" title="Keine Lerninhalte" sub="Füge E-Learnings, Guides und Workshops hinzu" action={<Btn v="primary" onClick={() => setShowLearn(true)}>Lerninhalt anlegen</Btn>} /> : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
+                  {learns.map(l => (
+                    <Card key={l.id} style={{ padding: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{l.title}</div>
+                          <Badge color={T.purple} style={{ marginTop: 3 }}>{l.type}</Badge>
+                        </div>
+                        <Btn v="ghost" small onClick={() => up(d => { d.learningItems = (d.learningItems || []).filter(x => x.id !== l.id); })}>✕</Btn>
+                      </div>
+                      {l.audience && <div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>Zielgruppe: {l.audience}</div>}
+                      {l.duration && <div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>⏱ {l.duration}</div>}
+                      {l.url && <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: T.accent }}>🔗 Link öffnen</a>}
+                      {l.notes && <div style={{ fontSize: 12, color: T.textSec, marginTop: 4 }}>{l.notes}</div>}
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </Card>
+            <Modal open={showLearn} onClose={() => setShowLearn(false)} title="Lerninhalt anlegen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Titel" value={fLearn.title} onChange={v => setFLearn(p => ({ ...p, title: v }))} />
+                <Input label="Typ" value={fLearn.type} onChange={v => setFLearn(p => ({ ...p, type: v }))} options={["e-learning","video","guide","workshop","webinar","podcast","article"]} />
+                <Input label="Zielgruppe" value={fLearn.audience} onChange={v => setFLearn(p => ({ ...p, audience: v }))} />
+                <Input label="Dauer" value={fLearn.duration} onChange={v => setFLearn(p => ({ ...p, duration: v }))} />
+                <Input label="URL / Link" value={fLearn.url} onChange={v => setFLearn(p => ({ ...p, url: v }))} />
+                <Input label="Notizen" value={fLearn.notes} onChange={v => setFLearn(p => ({ ...p, notes: v }))} textarea />
+              </div>
+              <Btn v="primary" onClick={saveLearn} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
       // ─── RENDER ───────────────────────────────────────────────────────
-      const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, references: ReferencesView, pdfReport: PDFReportView, io: IOView };
+      const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, references: ReferencesView, pdfReport: PDFReportView, io: IOView, governance: GovernanceView, outcomes: OutcomesView, leadership: LeadershipView, teamdev: TeamdevView, dialogue: DialogueView, opmodel: OpmodelView, adoption: AdoptionView };
       const V = views[nav] || DashboardView;
 
       return (
