@@ -63,6 +63,7 @@
 <body>
   <div id="root"></div>
   <script type="text/babel">
+    const { useState, useEffect, useCallback, useMemo, useRef } = React;
     const { useState, useEffect, useCallback, useMemo } = React;
 
     const uid = (p = "") => p + Math.random().toString(36).slice(2, 8);
@@ -875,6 +876,7 @@
           { key: "risk", label: "Risk Assessment" },
           { key: "pct", label: "PCT Profile" },
           { key: "stakeholders", label: "Stakeholder", count: iSH.length },
+          { key: "shmap", label: "Stakeholder-Map" },
           { key: "targets", label: "Zielgruppen", count: iTG.length },
           { key: "impacts", label: "Impacts", count: iIM.length },
           { key: "actions", label: "Maßnahmen", count: iAC.length },
@@ -889,6 +891,7 @@
             {sub === "risk" && <RiskSub />}
             {sub === "pct" && <PCTSub />}
             {sub === "stakeholders" && <StakeholderSub />}
+            {sub === "shmap" && <StakeholderMapSub />}
             {sub === "targets" && <TargetSub />}
             {sub === "impacts" && <ImpactSub />}
             {sub === "actions" && <ActionSub />}
@@ -1081,6 +1084,8 @@
         const del = (id, e) => { if (e) e.stopPropagation(); up(d => d.stakeholders = d.stakeholders.filter(s => s.id !== id)); };
         return (
           <div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>Stakeholder</span><Btn v="primary" small onClick={openNew}>＋ Hinzufügen</Btn></div>
+            {iSH.length === 0 ? <Empty icon="👤" title="Keine Stakeholder" sub="" /> : (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ display: "flex", gap: 4 }}>
                 {[["list","📋 Liste"],["map","🗺️ Power-Interest"],["network","🕸️ Netzwerk"]].map(([k,l]) => (
@@ -1123,6 +1128,7 @@
                   </table>
                 </div>
               </Card>
+            )}
             ))}
             <Modal open={show} onClose={() => { setShow(false); setEditId(null); }} title={editId ? "Stakeholder bearbeiten" : "Stakeholder hinzufügen"}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1451,6 +1457,10 @@
         const openEdit = (a) => { setEditId(a.id); sF({ typeTags: a.typeTags || [a.type], title: a.title, adkar_tags: a.adkar_tags || [], target_group_ids: a.target_group_ids || [], owner_person_id: a.owner_person_id || "", supporter_ids: a.supporter_ids || [], opponent_ids: a.opponent_ids || [], due_date: a.due_date || "", status: a.status, impact_item_ids: a.impact_item_ids || [] }); setShow(true); };
         const openNew = () => { setEditId(null); sF(emptyF); setShow(true); };
         const cycle = id => up(d => { const a = d.actions.find(x => x.id === id); if (a) a.status = a.status === "planned" ? "in_progress" : a.status === "in_progress" ? "done" : "planned"; });
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600 }}>Maßnahmen</span><Btn v="primary" small onClick={openNew}>＋</Btn></div>
+            {iAC.length === 0 ? <Empty icon="📋" title="Keine Maßnahmen" sub="" /> : (
         const moveStatus = (id, st) => up(d => { const a = d.actions.find(x => x.id === id); if (a) a.status = st; });
         const COLS = [
           { key: "planned", label: "Geplant", icon: "📋", color: T.warn },
@@ -1534,6 +1544,7 @@
                   );
                 })}
               </div>
+            )}
             ))}
             <Modal open={show} onClose={() => { setShow(false); setEditId(null); }} title={editId ? "Maßnahme bearbeiten" : "Neue Maßnahme"} wide>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1925,6 +1936,8 @@
 
       // ─── TIMELINE ─────────────────────────────────────────────────────
       const TimelineView = () => {
+        if (!ini) return <Empty icon="📅" title="Keine Initiative" sub="" />;
+        const [tvSub, setTvSub] = useState("zeitstrahl");
         const [tvSub, setTvSub] = useState("zeitstrahl");
         if (!ini) return <Empty icon="📅" title="Keine Initiative" sub="" />;
         const events = [];
@@ -3663,6 +3676,8 @@
         );
       };
 
+      // ─── RENDER ───────────────────────────────────────────────────────
+      const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, references: ReferencesView, pdfReport: PDFReportView, io: IOView, governance: GovernanceView, outcomes: OutcomesView, leadership: LeadershipView, teamdev: TeamdevView, dialogue: DialogueView, opmodel: OpmodelView, adoption: AdoptionView };
       // ─── CM PROFILE VIEW ──────────────────────────────────────────────
       const CMProfileView = () => {
         const CM_COMP_DIMS = [
