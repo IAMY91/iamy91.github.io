@@ -180,6 +180,26 @@
       },
     ];
 
+    // ─── Strategische Weiterentwicklung (zusätzliche Anforderungen) ───
+    const STRATEGY_CAPABILITIES = [
+      { id: "s1", domain: "Portfolio Governance", title: "Abhängigkeitsmanagement zwischen Initiativen", impact: 9, effort: 6, phase: 1, outcomes: ["Cross-Programm Dependencies transparent", "kritische Pfade früh sichtbar", "saubere Eskalationsgrundlage"] },
+      { id: "s2", domain: "Portfolio Governance", title: "Kapazitäts- und Konfliktanalyse", impact: 9, effort: 7, phase: 1, outcomes: ["Überlastete Zielgruppen erkennen", "Ressourcenkonflikte aktiv steuern", "Priorisierung datenbasiert entscheiden"] },
+      { id: "s3", domain: "Wirkungsmessung", title: "Outcome-KPIs pro Zielgruppe", impact: 10, effort: 5, phase: 1, outcomes: ["Adoption und Verhaltensänderung messen", "Nutzungsgrad statt Aktivitäts-Output", "Management-ready Wirkungssicht"] },
+      { id: "s4", domain: "Leadership Enablement", title: "Führungskräfte-Cockpit & Sponsor-Tracking", impact: 9, effort: 6, phase: 2, outcomes: ["Konkrete Führungsaufgaben je Zeitraum", "Sponsorenwirksamkeit nachhalten", "Entscheidungslog für Leadership"] },
+      { id: "s5", domain: "Teamentwicklung", title: "Team-Pulse, Retros und Reinforcement", impact: 8, effort: 5, phase: 2, outcomes: ["Stimmungs- und Lernschleifen etablieren", "Maßnahmen-Backlog je Team", "Verstetigung nach Go-Live sichern"] },
+      { id: "s6", domain: "Operating Model", title: "RACI/ROLEN + integrierte Risikosteuerung", impact: 8, effort: 6, phase: 2, outcomes: ["klare Verantwortlichkeiten", "Change-Risiken mit Owner", "Review-Zyklen standardisiert"] },
+      { id: "s7", domain: "Kollaboration & Daten", title: "Mehrbenutzerfähigkeit, Rollen/Rechte, Audit Trail", impact: 10, effort: 8, phase: 1, outcomes: ["weg von rein lokalem Speicher", "Nachvollziehbarkeit von Änderungen", "Freigabe-Workflows für Deliverables"] },
+      { id: "s8", domain: "Integrationen", title: "Teams, SharePoint, Jira/Planner, BI, LMS", impact: 9, effort: 8, phase: 3, outcomes: ["Change-Arbeit im operativen Alltag", "Trainings- und Nutzungsdaten koppeln", "Executive Reporting automatisieren"] },
+      { id: "s9", domain: "AI Assistenz", title: "Copilot für Maßnahmen & Kommunikation", impact: 9, effort: 7, phase: 3, outcomes: ["nächste-beste-Aktion Empfehlungen", "automatische Kommunikationsentwürfe", "Risikodetektion und Anomaliehinweise"] },
+      { id: "s10", domain: "Adoption & Professional Services", title: "Rollen-Onboarding, Lernpfade, Benchmarking", impact: 8, effort: 5, phase: 3, outcomes: ["schnelleres Enablement je Rolle", "Micro-Learnings in der Plattform", "anonymisierte Reifegradvergleiche"] },
+    ];
+
+    const STRATEGY_PHASES = {
+      1: ["Mehrbenutzerfähigkeit, Rollen/Rechte, zentrale Datenhaltung", "Portfolio-Governance (Abhängigkeiten, Kapazität, Eskalationen)", "Outcome-KPI-Set + Trendvisualisierung"],
+      2: ["Führungskräfte-Cockpit + Sponsor-Tracking", "Team-Pulse + Retrospektiven + Reinforcement-Mechaniken", "Standardisierte Change-Risiko- und Entscheidungslogs"],
+      3: ["Integrationen (Teams, Planner/Jira, BI, LMS)", "AI-Copilot für Maßnahmen, Kommunikation und Alerts", "Benchmarking & Best-Practice-Recommender"],
+    };
+
     // ─── Persistence ────────────────────────────────────────────────────
     const SK = "ocm-v3";
     const sv = async d => { try { localStorage.setItem(SK, JSON.stringify(d)); } catch { } };
@@ -455,6 +475,7 @@
               { key: "heatmap", icon: "🔥", label: "Heatmap", off: !sel },
               { key: "timeline", icon: "📅", label: "Timeline", off: !sel },
               { key: "methods", icon: "📚", label: "Methoden-Bibliothek" },
+              { key: "strategy", icon: "🧭", label: "Strategie-Roadmap" },
               { key: "references", icon: "📑", label: "Projektreferenzen" },
               { key: "io", icon: "↕️", label: "Import / Export" },
             ].map(item => (
@@ -1665,6 +1686,97 @@
         );
       };
 
+      // ─── STRATEGIE-ROADMAP (zusätzliche Anforderungen) ───────────────
+      const StrategyView = () => {
+        const [phase, setPhase] = useState("all");
+        const [domain, setDomain] = useState("alle");
+        const domains = ["alle", ...Array.from(new Set(STRATEGY_CAPABILITIES.map(c => c.domain)))];
+
+        const priorityScore = c => Math.round(c.impact * 1.6 - c.effort);
+        const riskMeta = c => c.effort >= 8 ? { txt: "Hohes Umsetzungsrisiko", c: T.danger, bg: T.dangerLt } : c.effort >= 6 ? { txt: "Mittleres Umsetzungsrisiko", c: T.warn, bg: T.warnLt } : { txt: "Niedriges Umsetzungsrisiko", c: T.success, bg: T.successLt };
+
+        const caps = STRATEGY_CAPABILITIES
+          .filter(c => phase === "all" || String(c.phase) === phase)
+          .filter(c => domain === "alle" || c.domain === domain)
+          .sort((a, b) => priorityScore(b) - priorityScore(a));
+
+        const avgImpact = (STRATEGY_CAPABILITIES.reduce((sum, c) => sum + c.impact, 0) / STRATEGY_CAPABILITIES.length).toFixed(1);
+        const avgEffort = (STRATEGY_CAPABILITIES.reduce((sum, c) => sum + c.effort, 0) / STRATEGY_CAPABILITIES.length).toFixed(1);
+
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>Strategie-Roadmap</h2>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>Ergänzende Anforderungen aus Organisationsentwicklung, Transformationsbegleitung, Change, Teamentwicklung und Leadership.</p>
+              </div>
+              <Badge c={T.adessoBlau} bg={T.accentLt}>12-Monats-Plan</Badge>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
+              <Card><div style={{ fontSize: 11, color: T.textMut }}>Handlungsfelder</div><div style={{ fontSize: 22, fontWeight: 700, color: T.adessoBlau }}>{STRATEGY_CAPABILITIES.length}</div></Card>
+              <Card><div style={{ fontSize: 11, color: T.textMut }}>Ø Impact</div><div style={{ fontSize: 22, fontWeight: 700, color: T.text }}>{avgImpact}/10</div></Card>
+              <Card><div style={{ fontSize: 11, color: T.textMut }}>Ø Aufwand</div><div style={{ fontSize: 22, fontWeight: 700, color: T.text }}>{avgEffort}/10</div></Card>
+              <Card><div style={{ fontSize: 11, color: T.textMut }}>Phase-1 Fokus</div><div style={{ fontSize: 22, fontWeight: 700, color: T.success }}>{STRATEGY_CAPABILITIES.filter(c => c.phase === 1).length}</div></Card>
+            </div>
+
+            <Card style={{ marginBottom: 14 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: T.textMut }}>Phase:</span>
+                {[{ k: "all", l: "Alle" }, { k: "1", l: "1" }, { k: "2", l: "2" }, { k: "3", l: "3" }].map(o => <Btn key={o.k} small v={phase === o.k ? "primary" : "default"} onClick={() => setPhase(o.k)}>{o.l}</Btn>)}
+                <span style={{ fontSize: 12, color: T.textMut, marginLeft: 10 }}>Domäne:</span>
+                {domains.map(d => <Btn key={d} small v={domain === d ? "primary" : "default"} onClick={() => setDomain(d)}>{d === "alle" ? "Alle" : d}</Btn>)}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 10 }}>
+                {caps.map(c => {
+                  const p = priorityScore(c);
+                  const r = riskMeta(c);
+                  return (
+                    <Card key={c.id} style={{ border: `1px solid ${T.borderLight}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+                        <div>
+                          <Badge c={T.adessoBlau} bg={T.accentLt}>{c.domain} · Phase {c.phase}</Badge>
+                          <div style={{ marginTop: 6, fontWeight: 700, color: T.text }}>{c.title}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 11, color: T.textMut }}>Priorität</div>
+                          <div style={{ fontWeight: 700, color: T.adessoBlau }}>{p}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 8, fontSize: 12, color: T.textSec }}>Impact <strong>{c.impact}/10</strong> · Aufwand <strong>{c.effort}/10</strong></div>
+                      <div style={{ marginTop: 6, height: 8, background: T.bg, borderRadius: 99, overflow: "hidden" }}>
+                        <div style={{ width: `${Math.max(8, Math.min(100, p * 7))}%`, height: "100%", background: T.adessoBlau }} />
+                      </div>
+                      <div style={{ marginTop: 8, display: "inline-block", padding: "3px 8px", borderRadius: 99, fontSize: 11, color: r.c, background: r.bg, fontWeight: 600 }}>{r.txt}</div>
+
+                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${T.borderLight}` }}>
+                        <div style={{ fontSize: 11, color: T.textMut, marginBottom: 4 }}>Erwartete Outcomes:</div>
+                        {(c.outcomes || []).map((o, i) => <div key={i} style={{ fontSize: 12, color: T.textSec, marginBottom: 2 }}>• {o}</div>)}
+                      </div>
+                    </Card>
+                  );
+                })}
+                {caps.length === 0 && <Empty title="Keine Treffer" text="Bitte Filter anpassen." />}
+              </div>
+            </Card>
+
+            <Card>
+              <SectionHead>Empfohlene Priorisierung (12 Monate)</SectionHead>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 }}>
+                {Object.entries(STRATEGY_PHASES).map(([k, items]) => (
+                  <Card key={k} style={{ background: T.bg }}>
+                    <div style={{ fontWeight: 700, color: T.adessoBlau, marginBottom: 6 }}>Phase {k}</div>
+                    {items.map((item, idx) => <div key={idx} style={{ fontSize: 12, color: T.textSec, marginBottom: 4 }}>• {item}</div>)}
+                  </Card>
+                ))}
+              </div>
+            </Card>
+          </div>
+        );
+      };
+
       // ─── IMPORT / EXPORT ──────────────────────────────────────────────
       const IOView = () => {
         const [txt, setTxt] = useState("");
@@ -1742,7 +1854,7 @@
       };
 
       // ─── RENDER ───────────────────────────────────────────────────────
-      const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, references: ReferencesView, pdfReport: PDFReportView, io: IOView };
+      const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, strategy: StrategyView, references: ReferencesView, pdfReport: PDFReportView, io: IOView };
       const V = views[nav] || DashboardView;
 
       return (
