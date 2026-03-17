@@ -64,6 +64,7 @@
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useEffect, useCallback, useMemo, useRef } = React;
+    const { useState, useEffect, useCallback, useMemo } = React;
 
     const uid = (p = "") => p + Math.random().toString(36).slice(2, 8);
     const today = () => new Date().toISOString().slice(0, 10);
@@ -244,6 +245,8 @@
       // Kollaboration
       auditLog: [],
       workflowStates: [],
+      stakeholderRelations: [],
+      cmProfiles: [],
       userProfile: { name: "CM-User", role: "admin", initials: "CM" },
       // Adoption
       maturityAssessment: { date: null, dimensions: [], overall_score: 0 },
@@ -548,6 +551,7 @@
       const iNAR = useMemo(() => (data.narratives || []).filter(n => n.initiative_id === sel), [data, sel]);
       const iRACI = useMemo(() => (data.raciItems || []).filter(r => r.initiative_id === sel), [data, sel]);
       const iCR = useMemo(() => (data.changeRisks || []).filter(r => r.initiative_id === sel), [data, sel]);
+      const iSREL = useMemo(() => (data.stakeholderRelations || []).filter(r => r.initiative_id === sel), [data, sel]);
       const userProfile = data.userProfile || emptyD().userProfile;
 
       // ─── SMART ALERTS ─────────────────────────────────────────────────
@@ -632,6 +636,7 @@
           { key: "methods", icon: "📚", label: "Methoden-Bibliothek" },
           { key: "references", icon: "📑", label: "Projektreferenzen" },
           { key: "adoption", icon: "🎓", label: "Adoption & Reife" },
+          { key: "cmprofile", icon: "🧑‍💼", label: "CM-Profile" },
         ]},
         { label: "System", items: [
           { key: "io", icon: "↕️", label: "Import / Export" },
@@ -1070,6 +1075,7 @@
       const StakeholderSub = () => {
         const [show, setShow] = useState(false);
         const [editId, setEditId] = useState(null);
+        const [shView, setShView] = useState("list");
         const emptyF = { name: "", roles: [], org_unit: "", influence: 5, interest: 5, readiness: "neutral", notes: "" };
         const [f, sF] = useState(emptyF);
         const save = () => { if (!f.name) return; if (editId) { up(d => { const s = d.stakeholders.find(x => x.id === editId); if (s) Object.assign(s, f); }); } else { up(d => d.stakeholders.push({ id: uid("S-"), initiative_id: sel, ...f })); } sF(emptyF); setEditId(null); setShow(false); };
@@ -1080,6 +1086,17 @@
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>Stakeholder</span><Btn v="primary" small onClick={openNew}>＋ Hinzufügen</Btn></div>
             {iSH.length === 0 ? <Empty icon="👤" title="Keine Stakeholder" sub="" /> : (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[["list","📋 Liste"],["map","🗺️ Power-Interest"],["network","🕸️ Netzwerk"]].map(([k,l]) => (
+                  <Btn key={k} small v={shView===k?"primary":"default"} onClick={() => setShView(k)}>{l}</Btn>
+                ))}
+              </div>
+              <Btn v="primary" small onClick={openNew}>＋ Hinzufügen</Btn>
+            </div>
+            {shView === "map" && <StakeholderMapSub />}
+            {shView === "network" && <NetworkGraphSub />}
+            {shView === "list" && (iSH.length === 0 ? <Empty icon="👤" title="Keine Stakeholder" sub="" /> : (
               <Card style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
@@ -1112,6 +1129,7 @@
                 </div>
               </Card>
             )}
+            ))}
             <Modal open={show} onClose={() => { setShow(false); setEditId(null); }} title={editId ? "Stakeholder bearbeiten" : "Stakeholder hinzufügen"}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <Input label="Name" value={f.name} onChange={v => sF(p => ({ ...p, name: v }))} style={{ gridColumn: "1/-1" }} />
@@ -1294,10 +1312,143 @@
         );
       };
 
+      // ─── STAKEHOLDER NETWORK GRAPH ────────────────────────────────────
+      const NetworkGraphSub = () => {
+        const [tooltip, setTooltip] = useState(null);
+        const [showAddRel, setShowAddRel] = useState(false);
+        const emptyRel = { from_id: "", to_id: "", type: "ally", strength: 2, note: "" };
+        const [fRel, setFRel] = useState(emptyRel);
+        const saveRel = () => {
+          if (!fRel.from_id || !fRel.to_id || fRel.from_id === fRel.to_id) return;
+          up(d => { if (!d.stakeholderRelations) d.stakeholderRelations = []; d.stakeholderRelations.push({ id: uid("REL-"), initiative_id: sel, ...fRel }); });
+          setFRel(emptyRel); setShowAddRel(false);
+        };
+        const delRel = id => up(d => { d.stakeholderRelations = (d.stakeholderRelations || []).filter(r => r.id !== id); });
+        const REL_TYPES = ["ally", "conflict", "influence", "neutral"];
+        const REL_LABELS = { ally: "Verbündet", conflict: "Konflikt", influence: "Einfluss auf", neutral: "Neutral" };
+        const REL_COLORS = { ally: T.success, conflict: T.danger, influence: T.accent, neutral: T.textMut };
+        const REL_DASH = { ally: "none", conflict: "6,3", influence: "none", neutral: "3,5" };
+        const W = 640, H = 400, CX = 320, CY = 195, R = 158;
+        const N = iSH.length;
+        const nodePos = iSH.map((sh, i) => {
+          const angle = (i / Math.max(1, N)) * 2 * Math.PI - Math.PI / 2;
+          return { ...sh, x: N === 1 ? CX : CX + R * Math.cos(angle), y: N === 1 ? CY : CY + R * Math.sin(angle) };
+        });
+        const nodeR = sh => Math.max(10, 6 + (sh.influence || 5) * 1.4);
+        const initials = name => (name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 12, fontSize: 12, color: T.textMut, flexWrap: "wrap" }}>
+                {Object.entries(REL_LABELS).map(([k, l]) => (
+                  <span key={k} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke={REL_COLORS[k]} strokeWidth="2" strokeDasharray={REL_DASH[k] === "none" ? "" : REL_DASH[k]} /></svg>
+                    {l}
+                  </span>
+                ))}
+              </div>
+              <Btn small v="primary" onClick={() => setShowAddRel(true)}>＋ Beziehung</Btn>
+            </div>
+            {iSH.length === 0 ? <Empty icon="🕸️" title="Keine Stakeholder" sub="Lege zuerst Stakeholder an" /> : (
+              <Card style={{ padding: 0, overflow: "hidden" }}>
+                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", maxHeight: 420 }}>
+                  {/* Quadrant hints */}
+                  <circle cx={CX} cy={CY} r={R} fill="none" stroke={T.borderLight} strokeWidth="1" strokeDasharray="4,4" />
+                  {/* Edges */}
+                  {iSREL.map(rel => {
+                    const from = nodePos.find(n => n.id === rel.from_id);
+                    const to = nodePos.find(n => n.id === rel.to_id);
+                    if (!from || !to) return null;
+                    const col = REL_COLORS[rel.type] || T.textMut;
+                    const dash = REL_DASH[rel.type] || "none";
+                    const sw = (rel.strength || 2) * 0.9;
+                    const dx = to.x - from.x, dy = to.y - from.y, dist = Math.sqrt(dx*dx + dy*dy);
+                    const ex = to.x - dx / dist * nodeR(to), ey = to.y - dy / dist * nodeR(to);
+                    return (
+                      <g key={rel.id}>
+                        <line x1={from.x} y1={from.y} x2={ex} y2={ey} stroke={col} strokeWidth={sw} strokeDasharray={dash === "none" ? "" : dash} opacity={0.75} />
+                        {rel.type === "influence" && (
+                          <polygon points={`${ex},${ey} ${ex - dy/dist*5 - dx/dist*8},${ey + dx/dist*5 - dy/dist*8} ${ex + dy/dist*5 - dx/dist*8},${ey - dx/dist*5 - dy/dist*8}`} fill={col} />
+                        )}
+                      </g>
+                    );
+                  })}
+                  {/* Nodes */}
+                  {nodePos.map(sh => {
+                    const r = nodeR(sh);
+                    const col = readyColor(sh.readiness);
+                    return (
+                      <g key={sh.id} onMouseEnter={() => setTooltip(sh)} onMouseLeave={() => setTooltip(null)} style={{ cursor: "pointer" }}>
+                        <circle cx={sh.x} cy={sh.y} r={r} fill={col + "22"} stroke={col} strokeWidth="2" />
+                        <text x={sh.x} y={sh.y} textAnchor="middle" dominantBaseline="middle" fontSize={Math.max(8, r * 0.65)} fontWeight="700" fill={col}>{initials(sh.name)}</text>
+                        <text x={sh.x} y={sh.y + r + 11} textAnchor="middle" fontSize="9" fill={T.textSec}>{sh.name.split(" ")[0]}</text>
+                      </g>
+                    );
+                  })}
+                  {/* Tooltip */}
+                  {tooltip && (() => {
+                    const np = nodePos.find(n => n.id === tooltip.id);
+                    if (!np) return null;
+                    const tx = np.x > W / 2 ? np.x - 150 : np.x + nodeR(np) + 6;
+                    const ty = Math.min(H - 80, np.y - 30);
+                    return (
+                      <g>
+                        <rect x={tx} y={ty} width="148" height="72" rx="6" fill={T.surface} stroke={T.border} strokeWidth="1" filter="drop-shadow(0 2px 6px rgba(0,0,0,.15))" />
+                        <text x={tx + 10} y={ty + 18} fontSize="12" fontWeight="700" fill={T.text}>{tooltip.name}</text>
+                        <text x={tx + 10} y={ty + 34} fontSize="10" fill={T.textMut}>{(tooltip.roles || [tooltip.role]).join(", ")}</text>
+                        <text x={tx + 10} y={ty + 50} fontSize="10" fill={readyColor(tooltip.readiness)}>{tooltip.readiness} · Einfl: {tooltip.influence} · Int: {tooltip.interest}</text>
+                        {tooltip.org_unit && <text x={tx + 10} y={ty + 64} fontSize="9" fill={T.textMut}>{tooltip.org_unit}</text>}
+                      </g>
+                    );
+                  })()}
+                </svg>
+                {/* Relationship list */}
+                {iSREL.length > 0 && (
+                  <div style={{ padding: "12px 16px", borderTop: `1px solid ${T.borderLight}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: T.textMut, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Beziehungen ({iSREL.length})</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {iSREL.map(rel => {
+                        const from = iSH.find(s => s.id === rel.from_id);
+                        const to = iSH.find(s => s.id === rel.to_id);
+                        return (
+                          <div key={rel.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: T.rs, background: REL_COLORS[rel.type] + "15", border: `1px solid ${REL_COLORS[rel.type]}44`, fontSize: 12 }}>
+                            <span style={{ fontWeight: 600 }}>{from?.name?.split(" ")[0] || "?"}</span>
+                            <span style={{ color: REL_COLORS[rel.type], fontSize: 10 }}>──{REL_LABELS[rel.type]}──▶</span>
+                            <span style={{ fontWeight: 600 }}>{to?.name?.split(" ")[0] || "?"}</span>
+                            {rel.note && <span style={{ fontSize: 10, color: T.textMut }}>({rel.note})</span>}
+                            <button onClick={() => delRel(rel.id)} style={{ border: "none", background: "transparent", cursor: "pointer", color: T.textMut, fontSize: 13, padding: "0 2px", lineHeight: 1 }}>×</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+            <Modal open={showAddRel} onClose={() => setShowAddRel(false)} title="Beziehung hinzufügen">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <Input label="Von Stakeholder" value={fRel.from_id} onChange={v => setFRel(p => ({ ...p, from_id: v }))} options={iSH.map(s => ({ value: s.id, label: s.name }))} />
+                <Input label="Zu Stakeholder" value={fRel.to_id} onChange={v => setFRel(p => ({ ...p, to_id: v }))} options={iSH.filter(s => s.id !== fRel.from_id).map(s => ({ value: s.id, label: s.name }))} />
+                <Input label="Beziehungstyp" value={fRel.type} onChange={v => setFRel(p => ({ ...p, type: v }))} options={REL_TYPES.map(t => ({ value: t, label: REL_LABELS[t] }))} />
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>Stärke (1–3)</label>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                    {[1,2,3].map(v => <Btn key={v} small v={fRel.strength === v ? "primary" : "default"} onClick={() => setFRel(p => ({ ...p, strength: v }))}>{v === 1 ? "Schwach" : v === 2 ? "Mittel" : "Stark"}</Btn>)}
+                  </div>
+                </div>
+                <Input label="Notiz (optional)" value={fRel.note} onChange={v => setFRel(p => ({ ...p, note: v }))} />
+              </div>
+              <Btn v="primary" onClick={saveRel} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
       // ─── ACTIONS ──────────────────────────────────────────────────────
       const ActionSub = () => {
         const [show, setShow] = useState(false);
         const [editId, setEditId] = useState(null);
+        const [acView, setAcView] = useState("list");
         const emptyF = { typeTags: [], title: "", adkar_tags: [], target_group_ids: [], owner_person_id: "", supporter_ids: [], opponent_ids: [], due_date: "", status: "planned", impact_item_ids: [] };
         const [f, sF] = useState(emptyF);
         const togA = t => sF(p => ({ ...p, adkar_tags: p.adkar_tags.includes(t) ? p.adkar_tags.filter(x => x !== t) : [...p.adkar_tags, t] }));
@@ -1310,6 +1461,62 @@
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><span style={{ fontSize: 14, fontWeight: 600 }}>Maßnahmen</span><Btn v="primary" small onClick={openNew}>＋</Btn></div>
             {iAC.length === 0 ? <Empty icon="📋" title="Keine Maßnahmen" sub="" /> : (
+        const moveStatus = (id, st) => up(d => { const a = d.actions.find(x => x.id === id); if (a) a.status = st; });
+        const COLS = [
+          { key: "planned", label: "Geplant", icon: "📋", color: T.warn },
+          { key: "in_progress", label: "In Bearbeitung", icon: "⚙️", color: T.accent },
+          { key: "done", label: "Erledigt", icon: "✅", color: T.success },
+        ];
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 4 }}>
+                <Btn small v={acView === "list" ? "primary" : "default"} onClick={() => setAcView("list")}>📋 Liste</Btn>
+                <Btn small v={acView === "kanban" ? "primary" : "default"} onClick={() => setAcView("kanban")}>🗌 Kanban</Btn>
+              </div>
+              <Btn v="primary" small onClick={openNew}>＋ Hinzufügen</Btn>
+            </div>
+            {/* Kanban Board */}
+            {acView === "kanban" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+                {COLS.map(col => {
+                  const colAC = iAC.filter(a => a.status === col.key);
+                  return (
+                    <div key={col.key}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, padding: "8px 12px", background: col.color + "18", borderRadius: T.rs, borderLeft: `3px solid ${col.color}` }}>
+                        <span>{col.icon}</span><span style={{ fontWeight: 700, color: col.color, fontSize: 13 }}>{col.label}</span>
+                        <span style={{ marginLeft: "auto", background: col.color, color: "#fff", borderRadius: 10, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>{colAC.length}</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 60 }}>
+                        {colAC.map(a => {
+                          const ow = iSH.find(s => s.id === a.owner_person_id);
+                          const tgs = iTG.filter(t => (a.target_group_ids || []).includes(t.id));
+                          return (
+                            <Card key={a.id} onClick={() => openEdit(a)} style={{ padding: 12, cursor: "pointer", borderTop: `3px solid ${col.color}` }}>
+                              <div style={{ fontWeight: 600, fontSize: 12.5, marginBottom: 6, lineHeight: 1.3 }}>{a.title}</div>
+                              <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginBottom: 6 }}>
+                                {(a.adkar_tags || []).map(t => <Badge key={t} color={ADKAR_C[t]} style={{ fontSize: 9, padding: "1px 5px" }}>{t}</Badge>)}
+                                {(a.typeTags || [a.type]).filter(Boolean).map(t => <Badge key={t} color={T.cyan} style={{ fontSize: 9, padding: "1px 5px" }}>{t}</Badge>)}
+                              </div>
+                              {a.due_date && <div style={{ fontSize: 10.5, color: T.textMut, marginBottom: 3 }}>📅 {fmtDate(a.due_date)}</div>}
+                              {ow && <div style={{ fontSize: 10.5, color: T.textMut, marginBottom: 3 }}>👤 {ow.name}</div>}
+                              {tgs.length > 0 && <div style={{ fontSize: 10.5, color: T.textMut, marginBottom: 6 }}>🎯 {tgs.map(t => t.name).join(", ")}</div>}
+                              <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                                {col.key !== "planned" && <Btn small v="ghost" onClick={e => { e.stopPropagation(); moveStatus(a.id, col.key === "in_progress" ? "planned" : "in_progress"); }} style={{ fontSize: 10, padding: "2px 8px" }}>◀ Zurück</Btn>}
+                                {col.key !== "done" && <Btn small v="primary" onClick={e => { e.stopPropagation(); moveStatus(a.id, col.key === "planned" ? "in_progress" : "done"); }} style={{ fontSize: 10, padding: "2px 8px" }}>Weiter ▶</Btn>}
+                              </div>
+                            </Card>
+                          );
+                        })}
+                        {colAC.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: T.textMut, fontSize: 12, background: T.bg, borderRadius: T.rs }}>Keine Maßnahmen</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* List View */}
+            {acView === "list" && (iAC.length === 0 ? <Empty icon="📋" title="Keine Maßnahmen" sub="" /> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {iAC.map(a => {
                   const ow = iSH.find(s => s.id === a.owner_person_id); const supps = (a.supporter_ids || []).map(id => iSH.find(s => s.id === id)).filter(Boolean); const opps = (a.opponent_ids || []).map(id => iSH.find(s => s.id === id)).filter(Boolean); return (
@@ -1338,6 +1545,7 @@
                 })}
               </div>
             )}
+            ))}
             <Modal open={show} onClose={() => { setShow(false); setEditId(null); }} title={editId ? "Maßnahme bearbeiten" : "Neue Maßnahme"} wide>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <Input label="Titel" value={f.title} onChange={v => sF(p => ({ ...p, title: v }))} style={{ gridColumn: "1/-1" }} />
@@ -1730,6 +1938,8 @@
       const TimelineView = () => {
         if (!ini) return <Empty icon="📅" title="Keine Initiative" sub="" />;
         const [tvSub, setTvSub] = useState("zeitstrahl");
+        const [tvSub, setTvSub] = useState("zeitstrahl");
+        if (!ini) return <Empty icon="📅" title="Keine Initiative" sub="" />;
         const events = [];
         iAC.forEach(a => events.push({ date: a.due_date || "", type: "action", icon: "📋", label: a.title, detail: statusLabel(a.status), color: statusColor(a.status), tags: (a.typeTags || [a.type]), nav: () => { setNav("initiative"); setSub("actions"); } }));
         iENG.forEach(e => { const s = iSH.find(x => x.id === e.stakeholder_id); events.push({ date: e.date || "", type: "engagement", icon: "🤝", label: `${s?.name || "?"}: ${e.type}`, detail: e.outcome || e.notes || "", color: T.purple, tags: [], nav: () => setNav("engagement") }); });
@@ -2339,6 +2549,17 @@
             { id: "RACI-d1", initiative_id: "INI-d1", activity: "Change-Strategie freigeben", responsible: "Julia Fischer", accountable: "Dr. Petra Schmidt", consulted: "Markus Weber", informed: "Thomas Bauer, Sabine Müller" },
             { id: "RACI-d2", initiative_id: "INI-d1", activity: "Training Finance durchführen", responsible: "Markus Weber", accountable: "Julia Fischer", consulted: "Anna Krause (Key-User)", informed: "Finance Teamleiter" },
             { id: "RACI-d3", initiative_id: "INI-d1", activity: "Kommunikation Go-Live", responsible: "Julia Fischer", accountable: "Dr. Petra Schmidt", consulted: "Thomas Bauer", informed: "Alle TGs" },
+          ];
+          d.stakeholderRelations = [
+            { id: "REL-d1", initiative_id: "INI-d1", from_id: "S-1", to_id: "S-2", type: "influence", strength: 3, note: "CFO gibt Budget frei" },
+            { id: "REL-d2", initiative_id: "INI-d1", from_id: "S-2", to_id: "S-5", type: "ally", strength: 2, note: "gemeinsame Projektziele" },
+            { id: "REL-d3", initiative_id: "INI-d1", from_id: "S-3", to_id: "S-1", type: "conflict", strength: 2, note: "Sorge um Stellenabbau" },
+            { id: "REL-d4", initiative_id: "INI-d1", from_id: "S-5", to_id: "S-3", type: "influence", strength: 2, note: "CM arbeitet auf Überzeugung hin" },
+            { id: "REL-d5", initiative_id: "INI-d1", from_id: "S-4", to_id: "S-2", type: "ally", strength: 1, note: "HR unterstützt IT-Plan" },
+          ];
+          d.cmProfiles = [
+            { id: "CMP-d1", name: "Julia Fischer", role: "Senior Change Manager", initials: "JF", email: "j.fischer@adesso.de", focus_areas: ["ADKAR","Stakeholder-Management","Kommunikation"], bio: "10 Jahre Erfahrung in IT-getriebenen Transformationen. Schwerpunkte: ERP-Rollouts, agile Transition, Leadership-Enablement.", competencies: { strategy: 9, leadership: 8, comms: 10, training: 7, measurement: 7, sustainability: 8 }, projects: [{ id: "P-d1", name: "SAP S/4HANA Rollout DACH", year: "2024", role: "Lead Change Manager", outcome: "95% Nutzerakzeptanz nach 6 Monaten" }, { id: "P-d2", name: "HR-Transformation Konzern", year: "2022", role: "Change Consultant", outcome: "Widerstandsrate um 40% gesenkt" }] },
+            { id: "CMP-d2", name: "Markus Becker", role: "Change Manager", initials: "MB", email: "m.becker@adesso.de", focus_areas: ["Training","Agilität","IT-Transformation"], bio: "Spezialist für technische Transformationen und Weiterbildungskonzepte. Certified Prosci ADKAR Practitioner.", competencies: { strategy: 7, leadership: 6, comms: 8, training: 9, measurement: 8, sustainability: 6 }, projects: [{ id: "P-d3", name: "CRM-Einführung Retail", year: "2023", role: "Training Lead", outcome: "360 Mitarbeitende geschult, 0 Support-Tickets nach Go-Live" }] },
           ];
           d.auditLog = [
             { id: "AL-1", ts: "2026-01-15T09:12:00", entity: "initiatives", action: "erstellt", detail: "ERP Migration Wave 1 angelegt", user: "CM-User" },
@@ -3457,6 +3678,193 @@
 
       // ─── RENDER ───────────────────────────────────────────────────────
       const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, references: ReferencesView, pdfReport: PDFReportView, io: IOView, governance: GovernanceView, outcomes: OutcomesView, leadership: LeadershipView, teamdev: TeamdevView, dialogue: DialogueView, opmodel: OpmodelView, adoption: AdoptionView };
+      // ─── CM PROFILE VIEW ──────────────────────────────────────────────
+      const CMProfileView = () => {
+        const CM_COMP_DIMS = [
+          { key: "strategy", label: "Change-Strategie" },
+          { key: "leadership", label: "Führungsaktivierung" },
+          { key: "comms", label: "Kommunikation" },
+          { key: "training", label: "Training & Befähigung" },
+          { key: "measurement", label: "Wirkungsmessung" },
+          { key: "sustainability", label: "Nachhaltigkeit" },
+        ];
+        const emptyP = { name: "", role: "Change Manager", initials: "", email: "", focus_areas: [], bio: "", competencies: {}, projects: [] };
+        const [show, setShow] = useState(false);
+        const [editId, setEditId] = useState(null);
+        const [f, sF] = useState(emptyP);
+        const [detail, setDetail] = useState(null);
+        const [projInput, setProjInput] = useState({ name: "", year: "", role: "", outcome: "" });
+        const profiles = data.cmProfiles || [];
+        const setComp = (key, val) => sF(p => ({ ...p, competencies: { ...p.competencies, [key]: val } }));
+        const addProject = () => { if (!projInput.name) return; sF(p => ({ ...p, projects: [...p.projects, { id: uid("PR-"), ...projInput }] })); setProjInput({ name: "", year: "", role: "", outcome: "" }); };
+        const open = () => { setEditId(null); sF(emptyP); setShow(true); };
+        const openEdit = prof => { setEditId(prof.id); sF({ name: prof.name, role: prof.role || "Change Manager", initials: prof.initials || "", email: prof.email || "", focus_areas: prof.focus_areas || [], bio: prof.bio || "", competencies: { ...prof.competencies }, projects: [...(prof.projects || [])] }); setShow(true); };
+        const save = () => {
+          if (!f.name) return;
+          const rec = { ...f, initials: f.initials || f.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() };
+          if (editId) { up(d => { const p = (d.cmProfiles || []).find(x => x.id === editId); if (p) Object.assign(p, rec); }); }
+          else { up(d => { if (!d.cmProfiles) d.cmProfiles = []; d.cmProfiles.push({ id: uid("CMP-"), ...rec }); }); }
+          setShow(false); setEditId(null);
+        };
+        const del = id => up(d => { d.cmProfiles = (d.cmProfiles || []).filter(x => x.id !== id); });
+        const avgComp = comps => { const vals = Object.values(comps || {}); return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0; };
+        const compColor = v => v >= 8 ? T.success : v >= 5 ? T.accent : T.warn;
+        const AVATAR_COLORS = [T.adessoBlau, T.purple, T.cyan, T.pink, "#8b5e3c", "#2d6a4f"];
+        return (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: T.adessoBlau }}>CM-Profile</h2>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: T.textMut }}>Kompetenzprofile & Projektreferenzen der Change-Manager</p>
+              </div>
+              <Btn v="primary" onClick={open}>＋ Profil anlegen</Btn>
+            </div>
+            {profiles.length === 0 ? (
+              <Empty icon="🧑‍💼" title="Noch keine CM-Profile" sub="Lege das erste Kompetenzprofil an" action={<Btn v="primary" onClick={open}>Profil anlegen</Btn>} />
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
+                {profiles.map((prof, idx) => {
+                  const avg = avgComp(prof.competencies);
+                  const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                  return (
+                    <Card key={prof.id} style={{ cursor: "pointer", borderTop: `4px solid ${avatarColor}` }} onClick={() => setDetail(prof)}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+                        <div style={{ width: 48, height: 48, borderRadius: "50%", background: avatarColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 700, flexShrink: 0 }}>{prof.initials || "CM"}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{prof.name}</div>
+                          <div style={{ fontSize: 11.5, color: T.textMut }}>{prof.role}</div>
+                          {prof.email && <div style={{ fontSize: 11, color: T.accent, marginTop: 2 }}>{prof.email}</div>}
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: compColor(avg) }}>{avg}</div>
+                          <div style={{ fontSize: 9, color: T.textMut }}>Ø Komp.</div>
+                        </div>
+                      </div>
+                      {/* Competency mini-bars */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 12 }}>
+                        {CM_COMP_DIMS.map(dim => {
+                          const val = (prof.competencies || {})[dim.key] || 0;
+                          const c = compColor(val);
+                          return (
+                            <div key={dim.key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                              <span style={{ width: 130, color: T.textMut, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dim.label}</span>
+                              <div style={{ flex: 1, background: T.bg, borderRadius: 3, height: 6 }}><div style={{ width: `${val * 10}%`, height: "100%", background: c, borderRadius: 3 }} /></div>
+                              <span style={{ width: 18, textAlign: "right", fontWeight: 600, color: c, fontSize: 10 }}>{val}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Focus areas */}
+                      {(prof.focus_areas || []).length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                          {prof.focus_areas.map(fa => <Badge key={fa} color={T.purple}>{fa}</Badge>)}
+                        </div>
+                      )}
+                      {/* Project references */}
+                      <div style={{ fontSize: 11, color: T.textMut }}>📁 {(prof.projects || []).length} Projektreferenz{(prof.projects || []).length !== 1 ? "en" : ""}</div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                        <Btn small v="default" onClick={e => { e.stopPropagation(); openEdit(prof); }}>✏️ Bearbeiten</Btn>
+                        <Btn small v="ghost" onClick={e => { e.stopPropagation(); del(prof.id); }}>✕</Btn>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+            {/* Detail Modal */}
+            <Modal open={!!detail} onClose={() => setDetail(null)} title={detail?.name || ""} wide>
+              {detail && (() => {
+                const avg = avgComp(detail.competencies);
+                return (
+                  <div>
+                    {detail.bio && <p style={{ fontSize: 13, color: T.textSec, margin: "0 0 16px", lineHeight: 1.6 }}>{detail.bio}</p>}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }}>
+                      <Card style={{ padding: 14 }}>
+                        <SectionHead>Kompetenzprofil (Ø {avg}/10)</SectionHead>
+                        {CM_COMP_DIMS.map(dim => {
+                          const val = (detail.competencies || {})[dim.key] || 0;
+                          const c = compColor(val);
+                          return (
+                            <div key={dim.key} style={{ marginBottom: 8 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                                <span>{dim.label}</span><span style={{ fontWeight: 700, color: c }}>{val}/10</span>
+                              </div>
+                              <div style={{ background: T.bg, borderRadius: 3, height: 7 }}><div style={{ width: `${val * 10}%`, height: "100%", background: c, borderRadius: 3 }} /></div>
+                            </div>
+                          );
+                        })}
+                      </Card>
+                      <Card style={{ padding: 14 }}>
+                        <SectionHead>Projektreferenzen ({(detail.projects || []).length})</SectionHead>
+                        {(detail.projects || []).length === 0 ? <div style={{ fontSize: 12, color: T.textMut }}>Keine Referenzen</div> : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            {(detail.projects || []).map(p => (
+                              <div key={p.id} style={{ padding: "8px 10px", background: T.bg, borderRadius: T.rs, borderLeft: `3px solid ${T.accent}` }}>
+                                <div style={{ fontWeight: 600, fontSize: 12 }}>{p.name} <span style={{ fontWeight: 400, color: T.textMut }}>({p.year})</span></div>
+                                {p.role && <div style={{ fontSize: 11, color: T.textSec }}>{p.role}</div>}
+                                {p.outcome && <div style={{ fontSize: 11, color: T.success, marginTop: 2 }}>✓ {p.outcome}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </Card>
+                    </div>
+                    {(detail.focus_areas || []).length > 0 && (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {detail.focus_areas.map(fa => <Badge key={fa} color={T.purple}>{fa}</Badge>)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </Modal>
+            {/* Create/Edit Modal */}
+            <Modal open={show} onClose={() => { setShow(false); setEditId(null); }} title={editId ? "Profil bearbeiten" : "Neues CM-Profil"} wide>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <Input label="Name" value={f.name} onChange={v => sF(p => ({ ...p, name: v }))} style={{ gridColumn: "1/-1" }} />
+                <Input label="Rolle/Titel" value={f.role} onChange={v => sF(p => ({ ...p, role: v }))} />
+                <Input label="Kürzel (2–3 Buchstaben)" value={f.initials} onChange={v => sF(p => ({ ...p, initials: v.toUpperCase().slice(0, 3) }))} />
+                <Input label="E-Mail" value={f.email} onChange={v => sF(p => ({ ...p, email: v }))} style={{ gridColumn: "1/-1" }} />
+                <div style={{ gridColumn: "1/-1" }}><TagInput label="Schwerpunkte" tags={f.focus_areas} onChange={v => sF(p => ({ ...p, focus_areas: v }))} suggestions={["ADKAR","Stakeholder-Management","Kommunikation","Training","Leadership","Kultur","Agilität","SAP","IT-Transformation"]} color={T.purple} /></div>
+                <Input label="Kurzbiografie" value={f.bio} onChange={v => sF(p => ({ ...p, bio: v }))} textarea style={{ gridColumn: "1/-1" }} />
+                <div style={{ gridColumn: "1/-1" }}>
+                  <SectionHead>Kompetenz-Bewertung (0–10)</SectionHead>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                    {CM_COMP_DIMS.map(dim => (
+                      <div key={dim.key}>
+                        <label style={{ fontSize: 11.5, fontWeight: 600, color: T.textSec }}>{dim.label}</label>
+                        <div style={{ display: "flex", gap: 3, marginTop: 4, flexWrap: "wrap" }}>
+                          {[0,2,4,6,8,10].map(v => <Btn key={v} small v={(f.competencies[dim.key] || 0) === v ? "primary" : "default"} onClick={() => setComp(dim.key, v)} style={{ padding: "2px 6px", fontSize: 10 }}>{v}</Btn>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ gridColumn: "1/-1" }}>
+                  <SectionHead>Projektreferenzen</SectionHead>
+                  {f.projects.map((p, i) => (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: T.bg, borderRadius: T.rs, marginBottom: 6, fontSize: 12 }}>
+                      <span style={{ flex: 1 }}><strong>{p.name}</strong> ({p.year}) – {p.role}</span>
+                      <Btn small v="ghost" onClick={() => sF(prev => ({ ...prev, projects: prev.projects.filter((_, j) => j !== i) }))}>✕</Btn>
+                    </div>
+                  ))}
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 6, marginTop: 8 }}>
+                    <Input label="Projektname" value={projInput.name} onChange={v => setProjInput(p => ({ ...p, name: v }))} />
+                    <Input label="Jahr" value={projInput.year} onChange={v => setProjInput(p => ({ ...p, year: v }))} />
+                    <Input label="Meine Rolle" value={projInput.role} onChange={v => setProjInput(p => ({ ...p, role: v }))} />
+                    <Input label="Ergebnis / Outcome" value={projInput.outcome} onChange={v => setProjInput(p => ({ ...p, outcome: v }))} style={{ gridColumn: "1/-1" }} />
+                  </div>
+                  <Btn small v="default" onClick={addProject} style={{ marginTop: 6 }}>＋ Referenz hinzufügen</Btn>
+                </div>
+              </div>
+              <Btn v="primary" onClick={save} style={{ marginTop: 16 }}>Speichern</Btn>
+            </Modal>
+          </div>
+        );
+      };
+
+      // ─── RENDER ───────────────────────────────────────────────────────
+      const views = { dashboard: DashboardView, portfolio: PortfolioView, initiative: InitiativeView, docs: DocsView, engagement: EngagementView, comms: CommsView, saturation: SaturationView, heatmap: HeatmapView, timeline: TimelineView, methods: MethodsView, references: ReferencesView, pdfReport: PDFReportView, io: IOView, governance: GovernanceView, outcomes: OutcomesView, leadership: LeadershipView, teamdev: TeamdevView, dialogue: DialogueView, opmodel: OpmodelView, adoption: AdoptionView, cmprofile: CMProfileView };
       const V = views[nav] || DashboardView;
 
       return (
