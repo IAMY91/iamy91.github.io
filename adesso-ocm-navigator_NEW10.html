@@ -55,9 +55,17 @@
       }
     }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <script>
+    window.onerror = function(msg, src, line, col, err) {
+      document.getElementById('root').innerHTML =
+        '<div style="font-family:monospace;padding:32px;color:#c00;background:#fff0f0;border:2px solid #c00;margin:32px;border-radius:8px">' +
+        '<b>JavaScript-Fehler (weiße Seite):</b><br><pre style="white-space:pre-wrap;margin-top:12px">' +
+        (err ? err.stack : msg) + '</pre></div>';
+    };
+  </script>
 </head>
 
 <body>
