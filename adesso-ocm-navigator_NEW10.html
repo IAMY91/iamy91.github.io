@@ -63,7 +63,7 @@
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState, useEffect, useCallback, useMemo } = React;
+    const { useState, useEffect, useCallback, useMemo, useRef } = React;
 
     const uid = (p = "") => p + Math.random().toString(36).slice(2, 8);
     const today = () => new Date().toISOString().slice(0, 10);
