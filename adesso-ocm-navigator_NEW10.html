@@ -1693,11 +1693,11 @@
 
       // ─── ENGAGEMENT TRACKER ───────────────────────────────────────────
       const EngagementView = () => {
-        if (!ini) return <Empty icon="🤝" title="Keine Initiative" sub="" />;
         const [show, setShow] = useState(false);
         const [editId, setEditId] = useState(null);
         const emptyF = { stakeholder_id: "", date: today(), type: "1:1-Gespräch", notes: "", outcome: "", next_action: "", attachmentName: "", action_ids: [], impact_item_ids: [] };
         const [f, sF] = useState(emptyF);
+        if (!ini) return <Empty icon="🤝" title="Keine Initiative" sub="" />;
         const save = () => { if (!f.stakeholder_id) return; if (editId) { up(d => { const e = d.engagements?.find(x => x.id === editId); if (e) Object.assign(e, f); }); } else { up(d => { if (!d.engagements) d.engagements = []; d.engagements.push({ id: uid("E-"), initiative_id: sel, ...f }); }); } sF(emptyF); setEditId(null); setShow(false); };
         const openEdit = (e) => { setEditId(e.id); sF({ stakeholder_id: e.stakeholder_id, date: e.date, type: e.type, notes: e.notes || "", outcome: e.outcome || "", next_action: e.next_action || "", attachmentName: e.attachmentName || "", action_ids: e.action_ids || [], impact_item_ids: e.impact_item_ids || [] }); setShow(true); };
         const openNew = () => { setEditId(null); sF(emptyF); setShow(true); };
@@ -1778,12 +1778,12 @@
       ];
 
       const CommsView = () => {
-        if (!ini) return <Empty icon="📣" title="Keine Initiative" sub="" />;
         const [show, setShow] = useState(false);
         const [editId, setEditId] = useState(null);
         const [showTpl, setShowTpl] = useState(false);
         const emptyF = { target_group_id: "", adkar_phase: "Awareness", key_message: "", channelTags: [], sender_id: "", timing: "", frequency: "", action_ids: [], impact_item_ids: [], stakeholder_ids: [] };
         const [f, sF] = useState(emptyF);
+        if (!ini) return <Empty icon="📣" title="Keine Initiative" sub="" />;
         const save = () => { if (!f.key_message) return; if (editId) { up(d => { const c = d.commsItems?.find(x => x.id === editId); if (c) Object.assign(c, f); }); } else { up(d => { if (!d.commsItems) d.commsItems = []; d.commsItems.push({ id: uid("CM-"), initiative_id: sel, ...f }); }); } sF(emptyF); setEditId(null); setShow(false); };
         const openEdit = (c) => { setEditId(c.id); sF({ target_group_id: c.target_group_id || "", adkar_phase: c.adkar_phase || "Awareness", key_message: c.key_message || "", channelTags: c.channelTags || [c.channel].filter(Boolean), sender_id: c.sender_id || "", timing: c.timing || "", frequency: c.frequency || "", action_ids: c.action_ids || [], impact_item_ids: c.impact_item_ids || [], stakeholder_ids: c.stakeholder_ids || [] }); setShow(true); };
         const openNew = () => { setEditId(null); sF(emptyF); setShow(true); };
@@ -2753,13 +2753,13 @@
 
       // ─── OUTCOMES (Wirkungsmessung) ───────────────────────────────────
       const OutcomesView = () => {
-        if (!ini) return <Empty icon="📈" title="Keine Initiative gewählt" sub="Wähle eine Initiative im Portfolio" />;
         const [showKPI, setShowKPI] = useState(false);
         const [showHyp, setShowHyp] = useState(false);
         const [showBen, setShowBen] = useState(false);
         const [fKPI, setFKPI] = useState({ title: "", target: "", baseline: "", unit: "", current: "", trend: "stable" });
         const [fHyp, setFHyp] = useState({ statement: "", assumption: "", metric: "", result: "", status: "open" });
         const [fBen, setFBen] = useState({ title: "", category: "financial", value: "", unit: "", realization_date: "", owner: "", status: "expected", notes: "" });
+        if (!ini) return <Empty icon="📈" title="Keine Initiative gewählt" sub="Wähle eine Initiative im Portfolio" />;
         const saveKPI = () => {
           if (!fKPI.title) return;
           up(d => { if (!d.outcomeKPIs) d.outcomeKPIs = []; d.outcomeKPIs.push({ id: uid("KPI-"), initiative_id: sel, ...fKPI }); });
@@ -2913,13 +2913,13 @@
 
       // ─── LEADERSHIP (Führung) ─────────────────────────────────────────
       const LeadershipView = () => {
-        if (!ini) return <Empty icon="👔" title="Keine Initiative gewählt" sub="" />;
         const [showTask, setShowTask] = useState(false);
         const [showDL, setShowDL] = useState(false);
         const [showPB, setShowPB] = useState(false);
         const [fTask, setFTask] = useState({ title: "", owner: "", due_date: "", status: "open", description: "" });
         const [fDL, setFDL] = useState({ date: today(), title: "", decision: "", rationale: "", owner: "" });
         const [fPB, setFPB] = useState({ title: "", audience: "", steps: "", purpose: "", notes: "" });
+        if (!ini) return <Empty icon="👔" title="Keine Initiative gewählt" sub="" />;
         const saveTask = () => {
           if (!fTask.title) return;
           up(d => { if (!d.leadershipTasks) d.leadershipTasks = []; d.leadershipTasks.push({ id: uid("LT-"), initiative_id: sel, ...fTask }); });
@@ -3073,7 +3073,6 @@
 
       // ─── TEAMDEV (Teamentwicklung) ────────────────────────────────────
       const TeamdevView = () => {
-        if (!ini) return <Empty icon="🧩" title="Keine Initiative gewählt" sub="" />;
         const [showPC, setShowPC] = useState(false);
         const [showMul, setShowMul] = useState(false);
         const [showRL, setShowRL] = useState(false);
@@ -3082,6 +3081,7 @@
         const [fMul, setFMul] = useState({ name: "", role: "", team: "", influence: 5, notes: "" });
         const [fRL, setFRL] = useState({ title: "", trigger: "", effect: "", notes: "" });
         const [fTM, setFTM] = useState({ team: "", dimension: "collaboration", score: 5, date: today(), notes: "" });
+        if (!ini) return <Empty icon="🧩" title="Keine Initiative gewählt" sub="" />;
         const savePC = () => {
           if (!fPC.group) return;
           up(d => { if (!d.pulseChecks) d.pulseChecks = []; d.pulseChecks.push({ id: uid("PC-"), initiative_id: sel, ...fPC, score: Number(fPC.score) }); });
@@ -3246,13 +3246,13 @@
 
       // ─── DIALOGUE (Dialog & Feedback) ────────────────────────────────
       const DialogueView = () => {
-        if (!ini) return <Empty icon="💬" title="Keine Initiative gewählt" sub="" />;
         const [showFC, setShowFC] = useState(false);
         const [showNar, setShowNar] = useState(false);
         const [showPer, setShowPer] = useState(false);
         const [fFC, setFFC] = useState({ name: "", type: "survey", frequency: "monthly", owner: "", notes: "" });
         const [fNar, setFNar] = useState({ title: "", audience: "", message: "", tone: "informativ", status: "draft" });
         const [fPer, setFPer] = useState({ name: "", role: "", org_unit: "", pain_points: "", goals: "", fears: "", motivations: "", quote: "" });
+        if (!ini) return <Empty icon="💬" title="Keine Initiative gewählt" sub="" />;
         const saveFC = () => {
           if (!fFC.name) return;
           up(d => { if (!d.feedbackChannels) d.feedbackChannels = []; d.feedbackChannels.push({ id: uid("FC-"), initiative_id: sel, ...fFC }); });
@@ -3390,11 +3390,11 @@
 
       // ─── OPMODEL (Operating Model) ────────────────────────────────────
       const OpmodelView = () => {
-        if (!ini) return <Empty icon="⚙️" title="Keine Initiative gewählt" sub="" />;
         const [showRaci, setShowRaci] = useState(false);
         const [showRisk, setShowRisk] = useState(false);
         const [fRaci, setFRaci] = useState({ activity: "", responsible: "", accountable: "", consulted: "", informed: "" });
         const [fRisk, setFRisk] = useState({ title: "", probability: 3, impact: 3, mitigation: "", owner: "", status: "open" });
+        if (!ini) return <Empty icon="⚙️" title="Keine Initiative gewählt" sub="" />;
         const saveRaci = () => {
           if (!fRaci.activity) return;
           up(d => { if (!d.raciItems) d.raciItems = []; d.raciItems.push({ id: uid("RACI-"), initiative_id: sel, ...fRaci }); });
